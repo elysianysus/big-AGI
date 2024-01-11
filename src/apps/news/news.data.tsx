@@ -10,7 +10,7 @@ import { platformAwareKeystrokes } from '~/common/components/KeyStroke';
 
 
 // update this variable every time you want to broadcast a new version to clients
-export const incrementalVersion: number = 9;
+export const incrementalVersion: number = 11;
 
 const B = (props: { href?: string, children: React.ReactNode }) => {
   const boldText = <Typography color={!!props.href ? 'primary' : 'neutral'} sx={{ fontWeight: 600 }}>{props.children}</Typography>;
@@ -30,7 +30,7 @@ export const newsCallout =
       <Typography level='title-lg'>
         Open Roadmap
       </Typography>
-      <Typography level='body-md'>
+      <Typography level='body-sm'>
         Take a peek at our roadmap to see what&apos;s in the pipeline.
         Discover upcoming features and let us know what excites you the most!
       </Typography>
@@ -58,19 +58,40 @@ export const newsCallout =
 
 // news and feature surfaces
 export const NewsItems: NewsItem[] = [
-  /*{
-  // https://github.com/enricoros/big-agi/milestone/7
-  // https://github.com/users/enricoros/projects/4/views/2
-    versionName: '1.7.0',
+  // still unannounced: phone calls, split windows, ...
+  {
+    versionCode: '1.10.0',
+    versionName: 'The Year of AGI',
+    versionMoji: '🎊✨',
+    versionDate: new Date('2024-01-06T08:00:00Z'),
     items: [
-    // multi-window support
-    // phone calls
+      { text: <><B href={RIssues + '/201'}>New UI</B> for desktop and mobile, enabling future expansions</>, issue: 201 },
+      { text: <><B href={RIssues + '/321'}>Folder categorization</B> for conversation management</>, issue: 321 },
+      { text: <><B>LM Studio</B> support and refined token management</> },
+      { text: <>Draggable panes in split screen mode</>, issue: 308 },
+      { text: <>Bug fixes and UI polish</> },
+      { text: <>Developers: document proxy settings on docker</>, issue: 318, dev: true },
     ],
-  },*/
+  },
+  {
+    versionCode: '1.9.0',
+    versionName: 'Creative Horizons',
+    // versionMoji: '🎨🌌',
+    versionDate: new Date('2023-12-28T22:30:00Z'),
+    items: [
+      { text: <><B href={RIssues + '/212'}>DALL·E 3</B> support (/draw), with advanced control</>, issue: 212 },
+      { text: <><B href={RIssues + '/304'}>Perfect scrolling</B> UX, on all devices</>, issue: 304 },
+      { text: <>Create personas <B href={RIssues + '/287'}>from text</B></>, issue: 287 },
+      { text: <>Openrouter: auto-detect models, support free-tiers and rates</>, issue: 291 },
+      { text: <>Image drawing: unified UX, including auto-prompting</> },
+      { text: <>Fix layout on Firefox</>, issue: 255 },
+      { text: <>Developers: new Text2Image subsystem, Optima layout subsystem, ScrollToBottom library, using new Panes library, improved Llms subsystem</>, dev: true },
+    ],
+  },
   {
     versionCode: '1.8.0',
     versionName: 'To The Moon And Back',
-    versionMoji: '🚀🌕🔙❤️',
+    // versionMoji: '🚀🌕🔙❤️',
     versionDate: new Date('2023-12-20T09:30:00Z'),
     items: [
       { text: <><B href={RIssues + '/275'}>Google Gemini</B> models support</> },
@@ -183,5 +204,6 @@ interface NewsItem {
   items?: {
     text: string | React.JSX.Element;
     dev?: boolean;
+    issue?: number;
   }[];
 }

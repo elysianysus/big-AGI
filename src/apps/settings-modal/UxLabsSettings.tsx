@@ -3,7 +3,6 @@ import * as React from 'react';
 import { FormControl, Typography } from '@mui/joy';
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import CallIcon from '@mui/icons-material/Call';
-import FormatPaintIcon from '@mui/icons-material/FormatPaint';
 import VerticalSplitIcon from '@mui/icons-material/VerticalSplit';
 
 import { FormLabelStart } from '~/common/components/forms/FormLabelStart';
@@ -35,7 +34,7 @@ export function UxLabsSettings() {
     />}
 
     <FormSwitchControl
-      title={<><VerticalSplitIcon color={labsSplitBranching ? 'primary' : undefined} sx={{ mr: 0.25 }} /> Split Branching</>} description={labsSplitBranching ? 'Enabled' : 'Disabled'} disabled
+      title={<><VerticalSplitIcon color={labsSplitBranching ? 'primary' : undefined} sx={{ mr: 0.25 }} /> Split Branching</>} description={labsSplitBranching ? 'Enabled' : 'Disabled'}
       checked={labsSplitBranching} onChange={setLabsSplitBranching}
     />
 

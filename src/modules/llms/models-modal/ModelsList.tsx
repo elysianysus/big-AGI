@@ -5,15 +5,14 @@ import { Box, Chip, IconButton, List, ListItem, ListItemButton, Typography } fro
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 
-import { DLLM, DModelSourceId, useModelsStore } from '~/modules/llms/store-llms';
-import { IModelVendor } from '~/modules/llms/vendors/IModelVendor';
-import { findVendorById } from '~/modules/llms/vendors/vendors.registry';
-
 import { GoodTooltip } from '~/common/components/GoodTooltip';
-import { openLayoutLLMOptions } from '~/common/layout/store-applayout';
+
+import { DLLM, DLLMId, DModelSourceId, useModelsStore } from '../store-llms';
+import { IModelVendor } from '../vendors/IModelVendor';
+import { findVendorById } from '../vendors/vendors.registry';
 
 
-function ModelItem(props: { llm: DLLM, vendor: IModelVendor, chipChat: boolean, chipFast: boolean, chipFunc: boolean }) {
+function ModelItem(props: { llm: DLLM, vendor: IModelVendor, chipChat: boolean, chipFast: boolean, chipFunc: boolean, onClick: () => void }) {
 
   // derived
   const llm = props.llm;
@@ -24,14 +23,14 @@ function ModelItem(props: { llm: DLLM, vendor: IModelVendor, chipChat: boolean, 
   tooltip += ' - ';
   if (llm.contextTokens) {
     tooltip += llm.contextTokens.toLocaleString() + ' tokens';
-    // if (llm.maxOutputTokens)
-    //   tooltip += ' / ' + llm.maxOutputTokens.toLocaleString() + ' max';
+    if (llm.maxOutputTokens)
+      tooltip += ' / ' + llm.maxOutputTokens.toLocaleString() + ' max output tokens';
   } else
-    tooltip += 'unknown tokens size';
+    tooltip += 'token count not provided';
 
   return (
     <ListItem>
-      <ListItemButton onClick={() => openLayoutLLMOptions(llm.id)} sx={{ alignItems: 'center', gap: 1 }}>
+      <ListItemButton onClick={props.onClick} sx={{ alignItems: 'center', gap: 1 }}>
 
         {/* Model Name */}
         <GoodTooltip title={tooltip}>
@@ -50,7 +49,7 @@ function ModelItem(props: { llm: DLLM, vendor: IModelVendor, chipChat: boolean, 
         {props.chipFunc && <Chip size='sm' variant='plain' sx={{ boxShadow: 'sm' }}>𝑓n</Chip>}
 
         {llm.hidden && (
-          <IconButton disabled size='sm' variant='plain' color='neutral'>
+          <IconButton disabled size='sm'>
             <VisibilityOffOutlinedIcon />
           </IconButton>
         )}
@@ -65,7 +64,8 @@ function ModelItem(props: { llm: DLLM, vendor: IModelVendor, chipChat: boolean, 
 }
 
 export function ModelsList(props: {
-  filterSourceId: DModelSourceId | null
+  filterSourceId: DModelSourceId | null,
+  onOpenLLMOptions: (id: DLLMId) => void,
 }) {
 
   // external state
@@ -101,7 +101,14 @@ export function ModelsList(props: {
     // for safety, ensure the vendor exists
     const vendor = findVendorById(llm._source.vId);
     !!vendor && items.push(
-      <ModelItem key={'llm-' + llm.id} llm={llm} vendor={vendor} chipChat={llm.id === chatLLMId} chipFast={llm.id === fastLLMId} chipFunc={llm.id === funcLLMId} />,
+      <ModelItem
+        key={'llm-' + llm.id}
+        llm={llm} vendor={vendor}
+        chipChat={llm.id === chatLLMId}
+        chipFast={llm.id === fastLLMId}
+        chipFunc={llm.id === funcLLMId}
+        onClick={() => props.onOpenLLMOptions(llm.id)}
+      />,
     );
   }
 

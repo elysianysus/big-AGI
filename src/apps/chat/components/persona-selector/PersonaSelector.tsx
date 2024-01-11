@@ -7,6 +7,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import TelegramIcon from '@mui/icons-material/Telegram';
 
 import { DConversationId, useChatStore } from '~/common/state/store-chats';
+import { lineHeightTextarea } from '~/common/app.theme';
 import { navigateToPersonas } from '~/common/app.routes';
 import { useUIPreferencesStore } from '~/common/state/store-ui';
 
@@ -129,7 +130,7 @@ export function PersonaSelector(props: { conversationId: DConversationId, runExa
         placeholder='Search for purpose…'
         startDecorator={<SearchIcon />}
         endDecorator={searchQuery && (
-          <IconButton variant='plain' color='neutral' onClick={handleSearchClear}>
+          <IconButton onClick={handleSearchClear}>
             <ClearIcon />
           </IconButton>
         )}
@@ -247,7 +248,7 @@ export function PersonaSelector(props: { conversationId: DConversationId, runExa
                 ? <>
                   Example: {selectedExample}
                   <IconButton
-                    variant='plain' color='primary' size='md'
+                    color='primary'
                     onClick={() => props.runExample(selectedExample)}
                     sx={{ opacity: 0, transition: 'opacity 0.3s' }}
                   >
@@ -268,7 +269,7 @@ export function PersonaSelector(props: { conversationId: DConversationId, runExa
               '&:focus-within': {
                 backgroundColor: 'background.popup',
               },
-              lineHeight: 1.75,
+              lineHeight: lineHeightTextarea,
               mt: 1,
             }} />
         )}

@@ -1,6 +1,7 @@
 import { ModelVendorAnthropic } from './anthropic/anthropic.vendor';
 import { ModelVendorAzure } from './azure/azure.vendor';
 import { ModelVendorGemini } from './gemini/gemini.vendor';
+import { ModelVendorLMStudio } from './lmstudio/lmstudio.vendor';
 import { ModelVendorLocalAI } from './localai/localai.vendor';
 import { ModelVendorMistral } from './mistral/mistral.vendor';
 import { ModelVendorOllama } from './ollama/ollama.vendor';
@@ -9,12 +10,13 @@ import { ModelVendorOpenAI } from './openai/openai.vendor';
 import { ModelVendorOpenRouter } from './openrouter/openrouter.vendor';
 
 import type { IModelVendor } from './IModelVendor';
-import { DLLMId, DModelSource, DModelSourceId, findLLMOrThrow } from '../store-llms';
+import { DLLMId, DModelSource, DModelSourceId, findLLMOrThrow, findSourceOrThrow } from '../store-llms';
 
 export type ModelVendorId =
   | 'anthropic'
   | 'azure'
   | 'googleai'
+  | 'lmstudio'
   | 'localai'
   | 'mistral'
   | 'ollama'
@@ -27,6 +29,7 @@ const MODEL_VENDOR_REGISTRY: Record<ModelVendorId, IModelVendor> = {
   anthropic: ModelVendorAnthropic,
   azure: ModelVendorAzure,
   googleai: ModelVendorGemini,
+  lmstudio: ModelVendorLMStudio,
   localai: ModelVendorLocalAI,
   mistral: ModelVendorMistral,
   ollama: ModelVendorOllama,
@@ -53,8 +56,15 @@ export function findVendorById<TSourceSetup = unknown, TAccess = unknown, TLLMOp
 export function findVendorForLlmOrThrow<TSourceSetup = unknown, TAccess = unknown, TLLMOptions = unknown>(llmId: DLLMId) {
   const llm = findLLMOrThrow<TSourceSetup, TLLMOptions>(llmId);
   const vendor = findVendorById<TSourceSetup, TAccess, TLLMOptions>(llm?._source.vId);
-  if (!vendor) throw new Error(`callChat: Vendor not found for LLM ${llmId}`);
+  if (!vendor) throw new Error(`Vendor not found for LLM ${llmId}`);
   return { llm, vendor };
+}
+
+export function findAccessForSourceOrThrow<TSourceSetup = unknown, TAccess = unknown>(sourceId: DModelSourceId) {
+  const source = findSourceOrThrow<TSourceSetup>(sourceId);
+  const vendor = findVendorById<TSourceSetup, TAccess>(source.vId);
+  if (!vendor) throw new Error(`ModelSource ${sourceId} has no vendor`);
+  return vendor.getTransportAccess(source.setup);
 }
 
 export function createModelSourceForVendor(vendorId: ModelVendorId, otherSources: DModelSource[]): DModelSource {
@@ -73,7 +83,7 @@ export function createModelSourceForVendor(vendorId: ModelVendorId, otherSources
   // create the source
   return {
     id: sourceId,
-    label: vendor.name + (sourceN > 0 ? ` #${sourceN}` : ''),
+    label: vendor.name, // NOTE: will be (re/) numbered upon adding to the store
     vId: vendorId,
     setup: vendor.initializeSetup?.() || {},
   };

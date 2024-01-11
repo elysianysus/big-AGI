@@ -17,9 +17,12 @@ export interface DLLM<TSourceSetup = unknown, TLLMOptions = unknown> {
   description: string;
   tags: string[]; // UNUSED for now
   // modelcaps: DModelCapability[];
-  contextTokens: number;
-  maxOutputTokens: number;
-  hidden: boolean;
+  contextTokens: number | null;     // null: must assume it's unknown
+  maxOutputTokens: number | null;   // null: must assume it's unknown
+  hidden: boolean; // hidden from Chat model UI selectors
+
+  // temporary special flags - not graduated yet
+  isFree: boolean; // model is free to use
 
   // llm -> source
   sId: DModelSourceId;
@@ -160,9 +163,23 @@ export const useModelsStore = create<LlmsStore>()(
 
 
       addSource: (source: DModelSource) =>
-        set(state => ({
-          sources: [...state.sources, source],
-        })),
+        set(state => {
+
+          // re-number all sources for the given vendor
+          let n = 0;
+          const sourceVId = source.vId;
+
+          return {
+            sources: [...state.sources, source].map(_source =>
+              _source.vId != sourceVId
+                ? _source
+                : {
+                  ..._source,
+                  label: _source.label.replace(/ #\d+$/, '') + (++n > 1 ? ` #${n}` : ''),
+                },
+            ),
+          };
+        }),
 
       removeSource: (id: DModelSourceId) =>
         set(state => {
@@ -204,11 +221,11 @@ export const useModelsStore = create<LlmsStore>()(
       version: 1,
       migrate: (state: any, fromVersion: number): LlmsStore => {
 
-        // 0 -> 1: add 'maxOutputTokens' where missing,
-        if (state && fromVersion === 0)
+        // 0 -> 1: add 'maxOutputTokens' where missing
+        if (state && fromVersion < 1)
           for (const llm of state.llms)
-            if (!llm.maxOutputTokens)
-              llm.maxOutputTokens = Math.round((llm.contextTokens || 4096) / 2);
+            if (llm.maxOutputTokens === undefined)
+              llm.maxOutputTokens = llm.contextTokens ? Math.round(llm.contextTokens / 2) : null;
 
         return state;
       },
@@ -236,9 +253,9 @@ export const useModelsStore = create<LlmsStore>()(
 );
 
 
-const defaultChatSuffixPreference = ['gpt-4-1106-preview', 'gpt-4-0613', 'gpt-4', 'gpt-4-32k', 'gpt-3.5-turbo'];
-const defaultFastSuffixPreference = ['gpt-3.5-turbo-1106', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo'];
-const defaultFuncSuffixPreference = ['gpt-4-1106-preview', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-0613', 'gpt-4-0613'];
+export const getChatLLMId = (): DLLMId | null => useModelsStore.getState().chatLLMId;
+
+export const getFastLLMId = (): DLLMId | null => useModelsStore.getState().fastLLMId;
 
 export function findLLMOrThrow<TSourceSetup, TLLMOptions>(llmId: DLLMId): DLLM<TSourceSetup, TLLMOptions> {
   const llm = useModelsStore.getState().llms.find(llm => llm.id === llmId);
@@ -247,15 +264,16 @@ export function findLLMOrThrow<TSourceSetup, TLLMOptions>(llmId: DLLMId): DLLM<T
   return llm as DLLM<TSourceSetup, TLLMOptions>;
 }
 
-function findLlmIdBySuffix(llms: DLLM[], suffixes: string[], fallbackToFirst: boolean): DLLMId | null {
-  if (!llms?.length) return null;
-  for (const suffix of suffixes)
-    for (const llm of llms)
-      if (llm.id.endsWith(suffix))
-        return llm.id;
-  // otherwise return first id
-  return fallbackToFirst ? llms[0].id : null;
+export function findSourceOrThrow<TSourceSetup>(sourceId: DModelSourceId) {
+  const source: DModelSource<TSourceSetup> | undefined = useModelsStore.getState().sources.find(source => source.id === sourceId);
+  if (!source) throw new Error(`ModelSource ${sourceId} not found`);
+  return source;
 }
+
+
+const defaultChatSuffixPreference = ['gpt-4-1106-preview', 'gpt-4-0613', 'gpt-4', 'gpt-4-32k', 'gpt-3.5-turbo'];
+const defaultFastSuffixPreference = ['gpt-3.5-turbo-1106', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo'];
+const defaultFuncSuffixPreference = ['gpt-4-1106-preview', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-0613', 'gpt-4-0613'];
 
 function updateSelectedIds(allLlms: DLLM[], chatLlmId: DLLMId | null, fastLlmId: DLLMId | null, funcLlmId: DLLMId | null): Partial<ModelsData> {
   if (chatLlmId && !allLlms.find(llm => llm.id === chatLlmId)) chatLlmId = null;
@@ -270,6 +288,24 @@ function updateSelectedIds(allLlms: DLLM[], chatLlmId: DLLMId | null, fastLlmId:
   return { chatLLMId: chatLlmId, fastLLMId: fastLlmId, funcLLMId: funcLlmId };
 }
 
+function findLlmIdBySuffix(llms: DLLM[], suffixes: string[], fallbackToFirst: boolean): DLLMId | null {
+  if (!llms?.length) return null;
+  for (const suffix of suffixes)
+    for (const llm of llms)
+      if (llm.id.endsWith(suffix))
+        return llm.id;
+  if (!fallbackToFirst) return null;
+
+  // otherwise return first that's not hidden
+  for (const llm of llms)
+    if (!llm.hidden)
+      return llm.id;
+
+  // otherwise return first id
+  return llms[0].id;
+}
+
+
 /**
  * Current 'Chat' LLM, or null
  */
@@ -280,4 +316,3 @@ export function useChatLLM() {
     return { chatLLM };
   }, shallow);
 }
-

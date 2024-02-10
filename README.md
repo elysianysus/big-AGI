@@ -1,7 +1,7 @@
 # BIG-AGI 🧠✨
 
 Welcome to big-AGI 👋, the GPT application for professionals that need function, form,
-simplicity, and speed. Powered by the latest models from 10 vendors and
+simplicity, and speed. Powered by the latest models from 11 vendors and
 open-source model servers, `big-AGI` offers best-in-class Voice and Chat with AI Personas,
 visualizations, coding, drawing, calling, and quite more -- all in a polished UX.
 
@@ -21,48 +21,47 @@ shows the current developments and future ideas.
 - Got a suggestion? [_Add your roadmap ideas_](https://github.com/enricoros/big-agi/issues/new?&template=roadmap-request.md)
 - Want to contribute? [_Pick up a task!_](https://github.com/users/enricoros/projects/4/views/4) - _easy_ to _pro_
 
-### What's New in 1.10.0 · Jan 6, 2024 · The Year of AGI
+### What's New in 1.13.0 · Feb 8, 2024 · Multi + Mind
 
-https://github.com/enricoros/big-AGI/assets/32999/fbb1be49-5c38-49c8-86fa-3705700f6c39
+https://github.com/enricoros/big-AGI/assets/32999/01732528-730e-41dc-adc7-511385686b13
 
-- **New UI**: for both desktop and mobile, sets the stage for future scale. [#201](https://github.com/enricoros/big-AGI/issues/201)
-- **Conversation Folders**: enhanced conversation organization. [#321](https://github.com/enricoros/big-AGI/issues/321)
-- **[LM Studio](https://lmstudio.ai/)** support and improved token management
-- Resizable panes in split-screen conversations.
-- Large performance optimizations
-- Developer enhancements: new UI framework, updated documentation for proxy settings on browserless/docker
+- **Side-by-Side Split Windows**: multitask with parallel conversations. [#208](https://github.com/enricoros/big-AGI/issues/208)
+- **Multi-Chat Mode**: message everyone, all at once. [#388](https://github.com/enricoros/big-AGI/issues/388)
+- **Export tables as CSV**: big thanks to @aj47. [#392](https://github.com/enricoros/big-AGI/pull/392)
+- Adjustable text size: customize density. [#399](https://github.com/enricoros/big-AGI/issues/399)
+- Dev2 Persona Technology Preview
+- Better looking chats with improved spacing, fonts, and menus
+- More: new video player, [LM Studio tutorial](https://github.com/enricoros/big-AGI/blob/main/docs/config-lmstudio.md) (thanks @aj47), [MongoDB support](https://github.com/enricoros/big-AGI/blob/main/docs/config-database.md) (thanks @ranfysvalle02), and speedups
 
-### What's New in 1.9.0 · Dec 28, 2023 · Creative Horizons
+### What's New in 1.12.0 · Jan 26, 2024 · AGI Hotline
 
-- **DALL·E 3 integration** for enhanced image generation. [#212](https://github.com/enricoros/big-AGI/issues/212)
-- **Perfect scrolling mechanics** across devices. [#304](https://github.com/enricoros/big-AGI/issues/304)
-- Persona creation now supports **text input**. [#287](https://github.com/enricoros/big-AGI/pull/287)
-- Openrouter updates for better model management and rate limit handling
-- Image drawing UX improvements
-- Layout fix for Firefox users
-- Developer enhancements: Text2Image subsystem, Optima layout, ScrollToBottom library, Panes library, and Llms subsystem updates.
+https://github.com/enricoros/big-AGI/assets/32999/95ceb03c-945d-4fdd-9a9f-3317beb54f3f
 
-### What's New in 1.8.0 · Dec 20, 2023
+- **Voice Calls**: real-time voice call your personas out of the blue or in relation to a chat [#354](https://github.com/enricoros/big-AGI/issues/354)
+- Support **OpenAI 0125** Models. [#364](https://github.com/enricoros/big-AGI/issues/364)
+- Rename or Auto-Rename chats.  [#222](https://github.com/enricoros/big-AGI/issues/222), [#360](https://github.com/enricoros/big-AGI/issues/360)
+- More control over **Link Sharing** [#356](https://github.com/enricoros/big-AGI/issues/356)
+- **Accessibility** to screen readers [#358](https://github.com/enricoros/big-AGI/issues/358)
+- Export chats to Markdown [#337](https://github.com/enricoros/big-AGI/issues/337)
+- Paste tables from Excel [#286](https://github.com/enricoros/big-AGI/issues/286)
+- Ollama model updates and context window detection fixes [#309](https://github.com/enricoros/big-AGI/issues/309)
 
-- **Google Gemini Support**: Use the newest Google models. [#275](https://github.com/enricoros/big-agi/issues/275)
-- **Mistral Platform**: Mixtral and future models support. [#273](https://github.com/enricoros/big-agi/issues/273)
-- **Diagram Instructions**. Thanks to @joriskalz! [#280](https://github.com/enricoros/big-agi/pull/280)
-- Ollama Chats: Enhanced chatting experience. [#270](https://github.com/enricoros/big-agi/issues/270)
-- Mac Shortcuts Fix: Improved UX on Mac
-- **Single-Tab Mode**: Data integrity with single window. [#268](https://github.com/enricoros/big-agi/issues/268)
-- **Updated Models**: Latest Ollama (v0.1.17) and OpenRouter models
-- Official Downloads: Easy access to the latest big-AGI on [big-AGI.com](https://big-agi.com)
-- For developers: [troubleshot networking](https://github.com/enricoros/big-AGI/issues/276#issuecomment-1858591483), fixed Vercel deployment, cleaned up the LLMs/Streaming framework
+### What's New in 1.11.0 · Jan 16, 2024 · Singularity
 
-### What's New in... ?
+https://github.com/enricoros/big-AGI/assets/1590910/a6b8e172-0726-4b03-a5e5-10cfcb110c68
 
-> [To The Moon And Back, Attachment Theory, Surf's Up, Loaded, and more releases...](docs/changelog.md).  
-> Check out the [big-AGI open roadmap](https://github.com/users/enricoros/projects/4/views/2)
+- **Find chats**: search in titles and content, with frequency ranking. [#329](https://github.com/enricoros/big-AGI/issues/329)
+- **Commands**: command auto-completion (type '/'). [#327](https://github.com/enricoros/big-AGI/issues/327)
+- **[Together AI](https://www.together.ai/products#inference)** inference platform support (good speed and newer models). [#346](https://github.com/enricoros/big-AGI/issues/346)
+- Persona Creator history, deletion, custom creation, fix llm API timeouts
+- Enable adding up to five custom OpenAI-compatible endpoints
+- Developer enhancements: new 'Actiles' framework
+
+For full details and former releases, check out the [changelog](docs/changelog.md).
 
 ## ✨ Key Features 👊
 
-![Ask away, paste a ton, copy the gems](docs/pixels/big-AGI-compo1.png)
-[More](docs/pixels/big-AGI-compo2b.png), [screenshots](docs/pixels).
+![big-AGI screenshot](docs/pixels/big-AGI-compo-20240201_small.png)
 
 - **AI Personas**: Tailor your AI interactions with customizable personas
 - **Sleek UI/UX**: A smooth, intuitive, and mobile-responsive interface
@@ -116,7 +115,7 @@ after installing the required dependencies.
 ```bash
 # .. repeat the steps above up to `npm install`, then:
 npm run build
-npm run start --port 3000
+next start --port 3000
 ```
 
 The app will be running on the specified port, e.g. `http://localhost:3000`.
@@ -156,6 +155,7 @@ Create your GitHub fork, create a Vercel project over that fork, and deploy it. 
 * [Helicone](https://www.helicone.ai/) LLM Observability Platform - Models > OpenAI > Advanced > API Host: 'oai.hconeai.com'
 * [Paste.gg](https://paste.gg/) Paste Sharing - Chat Menu > Share via paste.gg
 * [Prodia](https://prodia.com/) Image Generation - Settings > Image Generation > Api Key & Model
+* External code execution: export to [CodePen](https://codepen.io/pen/), [StackBlitz](https://stackblitz.com/), [JSFiddle](https://jsfiddle.net/)
 
 <br/>
 

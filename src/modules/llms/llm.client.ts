@@ -1,5 +1,6 @@
 import type { DLLMId } from './store-llms';
 import type { OpenAIWire } from './server/openai/openai.wiretypes';
+import type { StreamingClientUpdate } from './vendors/unifiedStreamingClient';
 import { findVendorForLlmOrThrow } from './vendors/vendors.registry';
 
 
@@ -46,7 +47,7 @@ export async function llmChatGenerateOrThrow<TSourceSetup = unknown, TAccess = u
   const access = vendor.getTransportAccess(partialSourceSetup);
 
   // get any vendor-specific rate limit delay
-  const delay = vendor.getRateLimitDelay?.(llm) ?? 0;
+  const delay = vendor.getRateLimitDelay?.(llm, partialSourceSetup) ?? 0;
   if (delay > 0)
     await new Promise(resolve => setTimeout(resolve, delay));
 
@@ -61,7 +62,7 @@ export async function llmStreamingChatGenerate<TSourceSetup = unknown, TAccess =
   functions: VChatFunctionIn[] | null,
   forceFunctionName: string | null,
   abortSignal: AbortSignal,
-  onUpdate: (update: Partial<{ text: string, typing: boolean, originLLM: string }>, done: boolean) => void,
+  onUpdate: (update: StreamingClientUpdate, done: boolean) => void,
 ): Promise<void> {
 
   // id to DLLM and vendor
@@ -75,7 +76,7 @@ export async function llmStreamingChatGenerate<TSourceSetup = unknown, TAccess =
   const access = vendor.getTransportAccess(partialSourceSetup); // as ChatStreamInputSchema['access'];
 
   // get any vendor-specific rate limit delay
-  const delay = vendor.getRateLimitDelay?.(llm) ?? 0;
+  const delay = vendor.getRateLimitDelay?.(llm, partialSourceSetup) ?? 0;
   if (delay > 0)
     await new Promise(resolve => setTimeout(resolve, delay));
 

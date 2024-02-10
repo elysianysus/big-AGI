@@ -6,23 +6,23 @@ import { persist } from 'zustand/middleware';
 
 /**
  * Graduated:
- *  - Persona YT Creator: still under a 'true' flag, to disable it if needed
+ *  - see `UxLabsSettings.tsx`, and also:
  *  - Text Tools: dinamically shown where applicable
- *  - Chat Mode: follow-ups; moved to Chat Advanced UI, itemized (Auto-title, Auto-diagram)
+ *  - Chat Mode: follow-ups; moved to Chat Advanced UI
  */
 interface UXLabsStore {
 
-  labsCalling: boolean;
-  setLabsCalling: (labsCalling: boolean) => void;
+  labsAttachScreenCapture: boolean;
+  setLabsAttachScreenCapture: (labsAttachScreenCapture: boolean) => void;
 
   labsCameraDesktop: boolean;
   setLabsCameraDesktop: (labsCameraDesktop: boolean) => void;
 
-  labsEnhancedUI: boolean;
-  setLabsEnhancedUI: (labsEnhancedUI: boolean) => void;
+  labsChatBarAlt: false | 'title',
+  setLabsChatBarAlt: (labsChatBarAlt: false | 'title') => void;
 
-  labsSplitBranching: boolean;
-  setLabsSplitBranching: (labsSplitBranching: boolean) => void;
+  labsHighPerformance: boolean;
+  setLabsHighPerformance: (labsHighPerformance: boolean) => void;
 
 }
 
@@ -30,17 +30,17 @@ export const useUXLabsStore = create<UXLabsStore>()(
   persist(
     (set) => ({
 
-      labsCalling: false,
-      setLabsCalling: (labsCalling: boolean) => set({ labsCalling }),
+      labsAttachScreenCapture: false,
+      setLabsAttachScreenCapture: (labsAttachScreenCapture: boolean) => set({ labsAttachScreenCapture }),
 
       labsCameraDesktop: false,
       setLabsCameraDesktop: (labsCameraDesktop: boolean) => set({ labsCameraDesktop }),
 
-      labsEnhancedUI: false,
-      setLabsEnhancedUI: (labsEnhancedUI: boolean) => set({ labsEnhancedUI }),
+      labsChatBarAlt: false,
+      setLabsChatBarAlt: (labsChatBarAlt: false | 'title') => set({ labsChatBarAlt }),
 
-      labsSplitBranching: false,
-      setLabsSplitBranching: (labsSplitBranching: boolean) => set({ labsSplitBranching }),
+      labsHighPerformance: false,
+      setLabsHighPerformance: (labsHighPerformance: boolean) => set({ labsHighPerformance }),
 
     }),
     {
@@ -48,3 +48,7 @@ export const useUXLabsStore = create<UXLabsStore>()(
     },
   ),
 );
+
+export function getUXLabsHighPerformance() {
+  return useUXLabsStore.getState().labsHighPerformance;
+}

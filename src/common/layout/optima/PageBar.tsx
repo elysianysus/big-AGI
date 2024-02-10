@@ -7,9 +7,9 @@ import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import MenuIcon from '@mui/icons-material/Menu';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import SettingsIcon from '@mui/icons-material/Settings';
 
-import type { NavItemApp } from '~/common/app.nav';
+import { checkVisibleNav, NavItemApp } from '~/common/app.nav';
 import { AgiSquircleIcon } from '~/common/components/icons/AgiSquircleIcon';
 import { Brand } from '~/common/app.config';
 import { CloseableMenu } from '~/common/components/CloseableMenu';
@@ -22,27 +22,23 @@ import { useOptimaDrawers } from './useOptimaDrawers';
 import { useOptimaLayout } from './useOptimaLayout';
 
 
-function PageBarItemsFallback() {
-  return (
+const PageBarItemsFallback = (props: { currentApp?: NavItemApp }) =>
+  <Box sx={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: { xs: 1, md: 2 },
+  }}>
     <Link href={ROUTE_INDEX}>
-      <AgiSquircleIcon inverted sx={{
-        width: 32,
-        height: 32,
-        color: 'white',
-      }} />
-      <Typography sx={{
-        ml: { xs: 1, md: 2 },
-        color: 'white',
-        textDecoration: 'none',
-      }}>
-        {Brand.Title.Base}
-      </Typography>
+      <AgiSquircleIcon inverted sx={{ width: 32, height: 32, color: 'white' }} />
     </Link>
-  );
-}
+
+    <Typography level='title-md'>
+      {props.currentApp?.barTitle || props.currentApp?.name || Brand.Title.Base}
+    </Typography>
+  </Box>;
 
 
-function CommonMenuItems(props: { onClose: () => void }) {
+function CommonPageMenuItems(props: { onClose: () => void }) {
 
   // external state
   const { openPreferencesTab } = useOptimaLayout();
@@ -70,12 +66,13 @@ function CommonMenuItems(props: { onClose: () => void }) {
     {/* Preferences |...| Dark Mode Toggle */}
     {/*<Tooltip title={<KeyStroke combo='Ctrl + Shift + P' />}>*/}
     <MenuItem onClick={handleShowSettings}>
-      <ListItemDecorator><SettingsOutlinedIcon /></ListItemDecorator>
+      <ListItemDecorator><SettingsIcon /></ListItemDecorator>
       Preferences
       <IconButton
-        variant='outlined'
+        size='sm'
+        variant='soft'
         onClick={handleToggleDarkMode}
-        sx={{ ml: 'auto' }}
+        sx={{ ml: 'auto', /*mr: '2px',*/ my: '-0.25rem' /* absorb the menuItem padding */ }}
       >
         {colorMode !== 'dark' ? <DarkModeIcon /> : <LightModeIcon />}
       </IconButton>
@@ -92,7 +89,7 @@ function CommonMenuItems(props: { onClose: () => void }) {
 /**
  * The top bar of the application, with pluggable Left and Right menus, and Center component
  */
-export function PageBar(props: { currentApp?: NavItemApp, isMobile?: boolean, sx?: SxProps }) {
+export function PageBar(props: { component: React.ElementType, currentApp?: NavItemApp, isMobile?: boolean, sx?: SxProps }) {
 
   // state
   // const [value, setValue] = React.useState<ContainedAppType>('chat');
@@ -100,15 +97,15 @@ export function PageBar(props: { currentApp?: NavItemApp, isMobile?: boolean, sx
 
   // external state
   const {
-    appBarItems, appPaneContent, appMenuItems,
+    appBarItems, appDrawerContent, appMenuItems,
   } = useOptimaLayout();
   const {
     openDrawer,
     isPageMenuOpen, openPageMenu, closePageMenu,
   } = useOptimaDrawers();
 
-  const commonMenuItems = React.useMemo(() => {
-    return <CommonMenuItems onClose={closePageMenu} />;
+  const commonPageMenuItems = React.useMemo(() => {
+    return <CommonPageMenuItems onClose={closePageMenu} />;
   }, [closePageMenu]);
 
   // [Desktop] hide the app bar if the current app doesn't use it
@@ -126,18 +123,22 @@ export function PageBar(props: { currentApp?: NavItemApp, isMobile?: boolean, sx
     {/*  transition: 'grid-template-rows 1.42s linear',*/}
     {/*}}>*/}
 
-    <InvertedBar direction='horizontal' sx={props.sx}>
+    <InvertedBar
+      component={props.component}
+      direction='horizontal'
+      sx={props.sx}
+    >
 
       {/* [Mobile] Drawer button */}
-      {(!!props.isMobile || props.currentApp?.hideNav) && (
+      {(!!props.isMobile || !checkVisibleNav(props.currentApp)) && (
         <InvertedBarCornerItem>
 
-          {(!appPaneContent || props.currentApp?.hideNav) ? (
+          {(!appDrawerContent || !checkVisibleNav(props.currentApp)) ? (
             <IconButton component={Link} href={ROUTE_INDEX} noLinkStyle>
               <ArrowBackIcon />
             </IconButton>
           ) : (
-            <IconButton disabled={!appPaneContent} onClick={openDrawer}>
+            <IconButton disabled={!appDrawerContent} onClick={openDrawer}>
               <MenuIcon />
             </IconButton>
           )}
@@ -151,13 +152,17 @@ export function PageBar(props: { currentApp?: NavItemApp, isMobile?: boolean, sx
         minHeight: 'var(--Bar)',
         display: 'flex', flexFlow: 'row wrap', justifyContent: 'center', alignItems: 'center',
         my: 'auto',
+        gap: props.isMobile ? 0 : 1,
       }}>
-        {desktopHide ? null : !!appBarItems ? appBarItems : <PageBarItemsFallback />}
+        {appBarItems
+          ? appBarItems
+          : <PageBarItemsFallback currentApp={props.currentApp} />
+        }
       </Box>
 
       {/* Page Menu Anchor */}
       <InvertedBarCornerItem>
-        <IconButton disabled={!pageMenuAnchor || (!appMenuItems && !props.isMobile)} onClick={openPageMenu} ref={pageMenuAnchor}>
+        <IconButton disabled={!pageMenuAnchor /*|| (!appMenuItems && !props.isMobile)*/} onClick={openPageMenu} ref={pageMenuAnchor}>
           <MoreVertIcon />
         </IconButton>
       </InvertedBarCornerItem>
@@ -169,21 +174,21 @@ export function PageBar(props: { currentApp?: NavItemApp, isMobile?: boolean, sx
 
     {/* Page Menu */}
     <CloseableMenu
-      maxHeightGapPx={56 + 24} noBottomPadding noTopPadding sx={{ minWidth: 320 }}
+      dense maxHeightGapPx={56 + 24} noBottomPadding={props.isMobile} placement='bottom-end'
       open={isPageMenuOpen && !!pageMenuAnchor.current} anchorEl={pageMenuAnchor.current} onClose={closePageMenu}
-      placement='bottom-end'
+      sx={{ minWidth: 280 }}
     >
 
       {/* Common (Preferences) */}
-      {commonMenuItems}
+      {commonPageMenuItems}
 
       {/* App Menu Items */}
-      {!!appMenuItems && <ListDivider sx={{ mt: 0 }} />}
+      {!!appMenuItems && <ListDivider />}
       {!!appMenuItems && <Box sx={{ overflowY: 'auto' }}>{appMenuItems}</Box>}
 
       {/* [Mobile] Nav is implemented at the bottom of the Page Menu (for now) */}
       {!!props.isMobile && !!appMenuItems && <ListDivider sx={{ mb: 0 }} />}
-      {!!props.isMobile && <MobileNavListItem currentApp={props.currentApp} />}
+      {!!props.isMobile && <MobileNavListItem variant='solid' currentApp={props.currentApp} />}
 
     </CloseableMenu>
 

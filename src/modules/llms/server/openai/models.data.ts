@@ -3,67 +3,94 @@ import { LLM_IF_OAI_Chat, LLM_IF_OAI_Complete, LLM_IF_OAI_Fn, LLM_IF_OAI_Vision 
 import type { ModelDescriptionSchema } from '../llm.server.types';
 import { wireMistralModelsListOutputSchema } from './mistral.wiretypes';
 import { wireOpenrouterModelsListOutputSchema } from './openrouter.wiretypes';
+import { wireTogetherAIListOutputSchema } from '~/modules/llms/server/openai/togetherai.wiretypes';
 
 
 // [Azure] / [OpenAI]
 const _knownOpenAIChatModels: ManualMappings = [
+  // GPT4 Vision
+  {
+    idPrefix: 'gpt-4-vision-preview',
+    label: 'GPT-4 Turbo · Vision',
+    description: 'GPT-4 Turbo model featuring improved instruction following, JSON mode, reproducible outputs, parallel function calling, and more. Returns a maximum of 4,096 output tokens.',
+    contextWindow: 128000,
+    maxCompletionTokens: 4096,
+    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Vision],
+    hidden: true, // because no 'image input' support yet
+    isLatest: true,
+  },
+
   // GPT4 Turbo
   {
+    idPrefix: 'gpt-4-0125-preview',
+    label: 'GPT-4 Turbo (0125)',
+    description: 'The latest GPT-4 model intended to reduce cases of “laziness” where the model doesn’t complete a task.',
+    contextWindow: 128000,
+    maxCompletionTokens: 4096,
+    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
+    isLatest: true,
+  },
+  {
     idPrefix: 'gpt-4-1106-preview',
-    label: '4-Turbo (1106)',
+    label: 'GPT-4 Turbo (1106)',
     description: '128k context, fresher knowledge, cheaper than GPT-4.',
     contextWindow: 128000,
     maxCompletionTokens: 4096,
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
-    latest: true,
   },
   {
-    idPrefix: 'gpt-4-vision-preview',
-    label: '4-Turbo (Vision)',
-    description: 'Vision support, 128k context, fresher knowledge, cheaper than GPT-4.',
+    idPrefix: 'gpt-4-turbo-preview',
+    label: 'GPT-4 Turbo',
+    description: 'Currently points to gpt-4-0125-preview.',
+    symLink: 'gpt-4-0125-preview',
+    hidden: true,
+    // copied
     contextWindow: 128000,
     maxCompletionTokens: 4096,
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Vision],
-    latest: true,
-    hidden: true,
+    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
   },
 
   // GPT4-32k's
   {
+    idPrefix: 'gpt-4-32k-0613',
+    label: 'GPT-4 32k (0613)',
+    description: 'Snapshot of gpt-4-32 from June 13th 2023.',
+    contextWindow: 32768,
+    interfaces: [LLM_IF_OAI_Chat],
+    isLatest: true,
+  },
+  {
     idPrefix: 'gpt-4-32k-0314',
-    label: 'GPT-4-32k (0314)',
+    label: 'GPT-4 32k (0314)',
     description: 'Snapshot of gpt-4-32 from March 14th 2023. Will be deprecated on June 13th 2024 at the earliest.',
     contextWindow: 32768,
     interfaces: [LLM_IF_OAI_Chat],
     hidden: true,
   },
   {
-    idPrefix: 'gpt-4-32k-0613',
-    label: 'GPT-4-32k (0613)',
-    description: 'Snapshot of gpt-4-32 from June 13th 2023.',
-    contextWindow: 32768,
-    interfaces: [LLM_IF_OAI_Chat],
-  },
-  {
     idPrefix: 'gpt-4-32k',
-    label: 'GPT-4-32k',
-    description: 'Largest context window for big problems',
+    label: 'GPT-4 32k',
+    description: 'Currently points to gpt-4-32k-0613.',
+    symLink: 'gpt-4-32k-0613',
+    // copied
     contextWindow: 32768,
     interfaces: [LLM_IF_OAI_Chat],
+    hidden: true,
   },
 
   // GPT4's
   {
     idPrefix: 'gpt-4-0613',
     label: 'GPT-4 (0613)',
-    description: 'Snapshot of gpt-4 from June 13th 2023 with function calling data.',
+    description: 'Snapshot of gpt-4 from June 13th 2023 with function calling data. Data up to Sep 2021.',
     contextWindow: 8192,
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
+    isLatest: true,
   },
   {
     idPrefix: 'gpt-4-0314',
     label: 'GPT-4 (0314)',
-    description: 'Snapshot of gpt-4 from March 14th 2023 with function calling data.',
+    description: 'Snapshot of gpt-4 from March 14th 2023 with function calling data. Data up to Sep 2021.',
     contextWindow: 8192,
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
     hidden: true,
@@ -71,81 +98,103 @@ const _knownOpenAIChatModels: ManualMappings = [
   {
     idPrefix: 'gpt-4',
     label: 'GPT-4',
-    description: 'Insightful, big thinker, slower, pricey',
+    description: 'Currently points to gpt-4-0613.',
+    symLink: 'gpt-4-0613',
+    // copied
     contextWindow: 8192,
-    interfaces: [LLM_IF_OAI_Chat],
+    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
+    hidden: true,
+  },
+
+
+  // 3.5-Turbo-Instruct (Not for Chat)
+  {
+    idPrefix: 'gpt-3.5-turbo-instruct',
+    label: '3.5-Turbo Instruct',
+    description: 'Similar capabilities as GPT-3 era models. Compatible with legacy Completions endpoint and not Chat Completions.',
+    contextWindow: 4097,
+    interfaces: [/* NO: LLM_IF_OAI_Chat,*/ LLM_IF_OAI_Complete],
     hidden: true,
   },
 
 
   // 3.5-Turbo-16k's
   {
-    idPrefix: 'gpt-3.5-turbo-1106',
-    label: '3.5-Turbo-16k (1106)',
-    description: 'Snapshot of gpt-3.5-turbo-16k from November 6th 2023.',
+    idPrefix: 'gpt-3.5-turbo-0125',
+    label: '3.5-Turbo (0125)',
+    description: 'The latest GPT-3.5 Turbo model with higher accuracy at responding in requested formats and a fix for a bug which caused a text encoding issue for non-English language function calls.',
     contextWindow: 16385,
     maxCompletionTokens: 4096,
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
-    latest: true,
+    isLatest: true,
+  },
+  {
+    idPrefix: 'gpt-3.5-turbo-1106',
+    label: '3.5-Turbo (1106)',
+    description: 'The latest GPT-3.5 Turbo model with improved instruction following, JSON mode, reproducible outputs, parallel function calling, and more.',
+    contextWindow: 16385,
+    maxCompletionTokens: 4096,
+    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
+    hidden: true,
   },
   {
     idPrefix: 'gpt-3.5-turbo-16k-0613',
-    label: '3.5-Turbo-16k (0613)',
+    label: '3.5-Turbo 16k (0613)',
     description: 'Snapshot of gpt-3.5-turbo-16k from June 13th 2023.',
     contextWindow: 16385,
     interfaces: [LLM_IF_OAI_Chat],
     hidden: true,
+    isLegacy: true,
   },
   {
     idPrefix: 'gpt-3.5-turbo-16k',
-    label: '3.5-Turbo-16k',
-    description: 'Same capabilities as the standard gpt-3.5-turbo model but with 4 times the context.',
+    label: '3.5-Turbo 16k',
+    description: 'Currently points to gpt-3.5-turbo-16k-0613.',
+    symLink: 'gpt-3.5-turbo-16k-0613',
+    // copied
     contextWindow: 16385,
     interfaces: [LLM_IF_OAI_Chat],
     hidden: true,
+    isLegacy: true,
   },
 
-  // 3.5-Turbo-Instruct
-  {
-    idPrefix: 'gpt-3.5-turbo-instruct',
-    label: '3.5-Turbo-Instruct',
-    description: 'Not for chat.',
-    contextWindow: 4097,
-    interfaces: [LLM_IF_OAI_Complete],
-    hidden: true,
-  },
-
-  // 3.5-Turbo's
-  {
-    idPrefix: 'gpt-3.5-turbo-0301',
-    label: '3.5-Turbo (0301)',
-    description: 'Snapshot of gpt-3.5-turbo from March 1st 2023. Will be deprecated on June 13th 2024 at the earliest.',
-    contextWindow: 4097,
-    hidden: true,
-    interfaces: [LLM_IF_OAI_Chat],
-  },
+  // 3.5-Turbo's (original, 4ks)
   {
     idPrefix: 'gpt-3.5-turbo-0613',
     label: '3.5-Turbo (0613)',
-    description: 'Snapshot of gpt-3.5-turbo from June 13th 2023 with function calling data.',
+    description: 'Snapshot of gpt-3.5-turbo from June 13th 2023. Will be deprecated on June 13, 2024.',
     contextWindow: 4097,
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
     hidden: true,
+    isLegacy: true,
   },
   {
+    idPrefix: 'gpt-3.5-turbo-0301',
+    label: '3.5-Turbo (0301)',
+    description: 'Snapshot of gpt-3.5-turbo from March 1st 2023. Will be deprecated on June 13th 2024.',
+    contextWindow: 4097,
+    interfaces: [LLM_IF_OAI_Chat],
+    hidden: true,
+    isLegacy: true,
+  },
+  {
+    // NOTE: will link to 0125 on Feb 16th 2024 - we are pre-ready for it on the dev branch
     idPrefix: 'gpt-3.5-turbo',
     label: '3.5-Turbo',
-    description: 'Fair speed and smarts.',
-    contextWindow: 4097,
+    description: 'Currently points to gpt-3.5-turbo-0125.',
+    symLink: 'gpt-3.5-turbo-0125',
+    // copied
+    contextWindow: 16385,
+    maxCompletionTokens: 4096,
+    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
     hidden: true,
-    interfaces: [LLM_IF_OAI_Chat],
   },
 
 
   // Azure variants - because someone forgot the dot
   {
     idPrefix: 'gpt-35-turbo-16k',
-    label: '3.5-Turbo-16k',
+    label: '3.5-Turbo 16k',
     description: 'Fair speed and smarts, large context',
     contextWindow: 16384,
     interfaces: [LLM_IF_OAI_Chat], // as azure doesn't version model id's (in the deployments), let's assume no function calling
@@ -167,7 +216,13 @@ const _knownOpenAIChatModels: ManualMappings = [
     interfaces: [LLM_IF_OAI_Chat],
     hidden: true,
   },
-];
+] as const;
+
+export function azureModelToModelDescription(azureDeploymentRef: string, openAIModelIdBase: string, modelCreated: number, modelUpdated?: number): ModelDescriptionSchema {
+  // if the deployment name mataches an OpenAI model prefix, use that
+  const known = _knownOpenAIChatModels.find(base => azureDeploymentRef == base.idPrefix);
+  return fromManualMapping(_knownOpenAIChatModels, known ? azureDeploymentRef : openAIModelIdBase, modelCreated, modelUpdated);
+}
 
 export function openAIModelToModelDescription(modelId: string, modelCreated: number, modelUpdated?: number): ModelDescriptionSchema {
   return fromManualMapping(_knownOpenAIChatModels, modelId, modelCreated, modelUpdated);
@@ -375,15 +430,109 @@ export function openRouterModelToModelDescription(wireModel: object): ModelDescr
 }
 
 
+// [Together AI]
+
+const _knownTogetherAIChatModels: ManualMappings = [
+  {
+    idPrefix: 'NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO',
+    label: 'Nous Hermes 2 - Mixtral 8x7B-DPO',
+    description: 'Nous Hermes 2 Mixtral 7bx8 DPO is the new flagship Nous Research model trained over the Mixtral 7bx8 MoE LLM. The model was trained on over 1,000,000 entries of primarily GPT-4 generated data, as well as other high quality data from open datasets across the AI landscape, achieving state of the art performance on a variety of tasks.',
+    contextWindow: 32768,
+    pricing: {
+      cpmPrompt: 0.0006,
+      cpmCompletion: 0.0006,
+    },
+    interfaces: [LLM_IF_OAI_Chat],
+  },
+  {
+    idPrefix: 'NousResearch/Nous-Hermes-2-Mixtral-8x7B-SFT',
+    label: 'Nous Hermes 2 - Mixtral 8x7B-SFT',
+    description: 'Nous Hermes 2 Mixtral 7bx8 SFT is the new flagship Nous Research model trained over the Mixtral 7bx8 MoE LLM. The model was trained on over 1,000,000 entries of primarily GPT-4 generated data, as well as other high quality data from open datasets across the AI landscape, achieving state of the art performance on a variety of tasks.',
+    contextWindow: 32768,
+    pricing: {
+      cpmPrompt: 0.0006,
+      cpmCompletion: 0.0006,
+    },
+    interfaces: [LLM_IF_OAI_Chat],
+  },
+  {
+    idPrefix: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
+    label: 'Mixtral-8x7B Instruct',
+    description: 'The Mixtral-8x7B Large Language Model (LLM) is a pretrained generative Sparse Mixture of Experts.',
+    contextWindow: 32768,
+    pricing: {
+      cpmPrompt: 0.0006,
+      cpmCompletion: 0.0006,
+    },
+    interfaces: [LLM_IF_OAI_Chat],
+  },
+  {
+    idPrefix: 'mistralai/Mistral-7B-Instruct-v0.2',
+    label: 'Mistral (7B) Instruct v0.2',
+    description: 'The Mistral-7B-Instruct-v0.2 Large Language Model (LLM) is an improved instruct fine-tuned version of Mistral-7B-Instruct-v0.1.',
+    contextWindow: 32768,
+    pricing: {
+      cpmPrompt: 0.0002,
+      cpmCompletion: 0.0002,
+    },
+    interfaces: [LLM_IF_OAI_Chat],
+  },
+  {
+    idPrefix: 'NousResearch/Nous-Hermes-2-Yi-34B',
+    label: 'Nous Hermes-2 Yi (34B)',
+    description: 'Nous Hermes 2 - Yi-34B is a state of the art Yi Fine-tune',
+    contextWindow: 4097,
+    pricing: {
+      cpmPrompt: 0.0008,
+      cpmCompletion: 0.0008,
+    },
+    interfaces: [LLM_IF_OAI_Chat],
+  },
+] as const;
+
+export function togetherAIModelsToModelDescriptions(wireModels: unknown): ModelDescriptionSchema[] {
+
+  function togetherAIModelToModelDescription(model: { id: string, created: number }) {
+    return fromManualMapping(_knownTogetherAIChatModels, model.id, model.created, undefined, {
+      idPrefix: model.id,
+      label: model.id.replaceAll('/', ' · ').replaceAll(/[_-]/g, ' '),
+      description: 'New Togehter AI Model',
+      contextWindow: null, // unknown
+      interfaces: [LLM_IF_OAI_Chat], // assume..
+      hidden: true,
+    });
+  }
+
+  function togetherAIModelsSort(a: ModelDescriptionSchema, b: ModelDescriptionSchema): number {
+    if (a.hidden && !b.hidden)
+      return 1;
+    if (!a.hidden && b.hidden)
+      return -1;
+    if (a.created !== b.created)
+      return (b.created || 0) - (a.created || 0);
+    return a.id.localeCompare(b.id);
+  }
+
+  return wireTogetherAIListOutputSchema.parse(wireModels)
+    .map(togetherAIModelToModelDescription)
+    .sort(togetherAIModelsSort);
+}
+
+
 // Helpers
 
+type ManualMapping = ({ idPrefix: string, isLatest?: boolean, isLegacy?: boolean, symLink?: string } & Omit<ModelDescriptionSchema, 'id' | 'created' | 'updated'>);
 type ManualMappings = ManualMapping[];
-type ManualMapping = ({ idPrefix: string, latest?: boolean } & Omit<ModelDescriptionSchema, 'id' | 'created' | 'updated'>);
 
 function fromManualMapping(mappings: ManualMappings, id: string, created?: number, updated?: number, fallback?: ManualMapping): ModelDescriptionSchema {
 
   // find the closest known model, or fall back, or take the last
   const known = mappings.find(base => id.startsWith(base.idPrefix)) || fallback || mappings[mappings.length - 1];
+
+  // label for symlinks
+  let label = known.label;
+  if (known.symLink && id === known.idPrefix)
+    label = `🔗 ${known.label} → ${known.symLink}`;
 
   // check whether this is a partial map, which indicates an unknown/new variant
   const suffix = id.slice(known.idPrefix.length).trim();
@@ -391,7 +540,10 @@ function fromManualMapping(mappings: ManualMappings, id: string, created?: numbe
   // return the model description sheet
   return {
     id,
-    label: (known.latest ? '🌟 ' : '') + known.label + (suffix ? ` [${suffix.replaceAll('-', ' ').trim()}]` : ''),
+    label: label
+      + (suffix ? ` [${suffix.replaceAll('-', ' ').trim()}]` : '')
+      + (known.isLatest ? ' 🌟' : '')
+      + (known.isLegacy ? /*' 💩'*/ ' [legacy]' : ''),
     created: created || 0,
     updated: updated || created || 0,
     description: known.description,

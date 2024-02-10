@@ -1,13 +1,12 @@
 import * as React from 'react';
 
-import { ChatMessage } from '../chat/components/message/ChatMessage';
+import { BlocksRenderer } from '../chat/components/message/blocks/BlocksRenderer';
 
 import { GoodModal } from '~/common/components/GoodModal';
-import { createDMessage } from '~/common/state/store-chats';
 import { platformAwareKeystrokes } from '~/common/components/KeyStroke';
 
 
-const shortcutsMd = `
+const shortcutsMd = platformAwareKeystrokes(`
 
 | Shortcut            | Description                                     |
 |---------------------|-------------------------------------------------|
@@ -27,18 +26,23 @@ const shortcutsMd = `
 | **Settings**        |                                                 |
 | Ctrl + Shift + P    | ⚙️ Preferences                                  |
 | Ctrl + Shift + M    | 🧠 Models                                       |
-| Ctrl + Shift + O    | Options (current Chat Model)                    |
+| Ctrl + Shift + O    | 💬 Options (current Chat Model)                 |
+| Ctrl + Shift + +    | Increase Text Size                              |
+| Ctrl + Shift + -    | Decrease Text Size                              |
 | Ctrl + Shift + ?    | Shortcuts                                       |
 
-`.trim();
-
-const shortcutsMessage = createDMessage('assistant', platformAwareKeystrokes(shortcutsMd));
+`).trim();
 
 
 export function ShortcutsModal(props: { onClose: () => void }) {
   return (
     <GoodModal open title='Desktop Shortcuts' onClose={props.onClose}>
-      <ChatMessage message={shortcutsMessage} hideAvatars noBottomBorder sx={{ p: 0, m: 0 }} />
+      <BlocksRenderer
+        text={shortcutsMd}
+        fromRole='assistant'
+        contentScaling='sm'
+        renderTextAsMarkdown
+      />
     </GoodModal>
   );
 }

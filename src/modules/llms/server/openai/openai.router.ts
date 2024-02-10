@@ -11,11 +11,13 @@ import { Brand } from '~/common/app.config';
 import { fixupHost } from '~/common/util/urlUtils';
 
 import { OpenAIWire, WireOpenAICreateImageOutput, wireOpenAICreateImageOutputSchema, WireOpenAICreateImageRequest } from './openai.wiretypes';
+import { azureModelToModelDescription, lmStudioModelToModelDescription, localAIModelToModelDescription, mistralModelsSort, mistralModelToModelDescription, oobaboogaModelToModelDescription, openAIModelToModelDescription, openRouterModelFamilySortFn, openRouterModelToModelDescription, togetherAIModelsToModelDescriptions } from './models.data';
 import { llmsChatGenerateWithFunctionsOutputSchema, llmsListModelsOutputSchema, ModelDescriptionSchema } from '../llm.server.types';
-import { lmStudioModelToModelDescription, localAIModelToModelDescription, mistralModelsSort, mistralModelToModelDescription, oobaboogaModelToModelDescription, openAIModelToModelDescription, openRouterModelFamilySortFn, openRouterModelToModelDescription } from './models.data';
 
 
-const openAIDialects = z.enum(['azure', 'lmstudio', 'localai', 'mistral', 'oobabooga', 'openai', 'openrouter']);
+const openAIDialects = z.enum([
+  'azure', 'lmstudio', 'localai', 'mistral', 'oobabooga', 'openai', 'openrouter', 'togetherai',
+]);
 
 export const openAIAccessSchema = z.object({
   dialect: openAIDialects,
@@ -120,7 +122,7 @@ export const llmOpenAIRouter = createTRPCRouter({
           .filter(m => m.model.includes('gpt'))
           .map((model): ModelDescriptionSchema => {
             const { id: deploymentRef, model: openAIModelId } = model;
-            const { id: _deleted, label, ...rest } = openAIModelToModelDescription(openAIModelId, model.created_at, model.updated_at);
+            const { id: _deleted, label, ...rest } = azureModelToModelDescription(deploymentRef, openAIModelId, model.created_at, model.updated_at);
             return {
               id: deploymentRef,
               label: `${label} (${deploymentRef})`,
@@ -133,6 +135,11 @@ export const llmOpenAIRouter = createTRPCRouter({
 
       // [non-Azure]: fetch openAI-style for all but Azure (will be then used in each dialect)
       const openAIWireModelsResponse = await openaiGET<OpenAIWire.Models.Response>(access, '/v1/models');
+
+      // [Together] missing the .data property
+      if (access.dialect === 'togetherai')
+        return { models: togetherAIModelsToModelDescriptions(openAIWireModelsResponse) };
+
       let openAIModels: OpenAIWire.Models.ModelDescription[] = openAIWireModelsResponse.data || [];
 
       // de-duplicate by ids (can happen for local servers.. upstream bugs)
@@ -178,22 +185,45 @@ export const llmOpenAIRouter = createTRPCRouter({
             // limit to only 'gpt' and 'non instruct' models
             .filter(model => model.id.includes('gpt') && !model.id.includes('-instruct'))
 
-            // custom openai sort
-            .sort((a, b) => {
-              const aId = a.id.slice(0, 5);
-              const bId = b.id.slice(0, 5);
-              if (aId === bId) {
-                const aCount = a.id.split('-').length;
-                const bCount = b.id.split('-').length;
-                if (aCount === bCount)
-                  return a.id.localeCompare(b.id);
-                return aCount - bCount;
-              }
-              return bId.localeCompare(aId);
-            })
-
             // to model description
-            .map((model): ModelDescriptionSchema => openAIModelToModelDescription(model.id, model.created));
+            .map((model): ModelDescriptionSchema => openAIModelToModelDescription(model.id, model.created))
+
+            // custom OpenAI sort
+            .sort((a, b) => {
+
+              // fix the OpenAI model names to be chronologically sorted
+              function remapReleaseDate(id: string): string {
+                return id
+                  .replace('0314', '230314')
+                  .replace('0613', '230613')
+                  .replace('1106', '231106')
+                  .replace('0125', '240125');
+              }
+
+              // due to using by-label, sorting doesn't require special cases anymore
+              return remapReleaseDate(b.label).localeCompare(remapReleaseDate(a.label));
+
+              // move models with the link emoji (🔗) to the bottom
+              // const aLink = a.label.includes('🔗');
+              // const bLink = b.label.includes('🔗');
+              // if (aLink !== bLink)
+              //   return aLink ? 1 : -1;
+
+              // sort by model name
+              // return b.label.replace('🌟 ', '').localeCompare(a.label.replace('🌟 ', ''));
+
+              // sort by model ID~ish
+              // const aId = a.id.slice(0, 5);
+              // const bId = b.id.slice(0, 5);
+              // if (aId === bId) {
+              //   const aCount = a.id.split('-').length;
+              //   const bCount = b.id.split('-').length;
+              //   if (aCount === bCount)
+              //     return a.id.localeCompare(b.id);
+              //   return aCount - bCount;
+              // }
+              // return bId.localeCompare(aId);
+            });
           break;
 
         case 'openrouter':
@@ -303,6 +333,7 @@ const DEFAULT_HELICONE_OPENAI_HOST = 'oai.hconeai.com';
 const DEFAULT_MISTRAL_HOST = 'https://api.mistral.ai';
 const DEFAULT_OPENAI_HOST = 'api.openai.com';
 const DEFAULT_OPENROUTER_HOST = 'https://openrouter.ai/api';
+const DEFAULT_TOGETHERAI_HOST = 'https://api.together.xyz';
 
 export function openAIAccess(access: OpenAIAccessSchema, modelRefId: string | null, apiPath: string): { headers: HeadersInit, url: string } {
   switch (access.dialect) {
@@ -416,6 +447,22 @@ export function openAIAccess(access: OpenAIAccessSchema, modelRefId: string | nu
         },
         url: orHost + apiPath,
       };
+
+    case 'togetherai':
+      const togetherKey = access.oaiKey || env.TOGETHERAI_API_KEY || '';
+      const togetherHost = fixupHost(access.oaiHost || DEFAULT_TOGETHERAI_HOST, apiPath);
+      if (!togetherKey || !togetherHost)
+        throw new Error('Missing TogetherAI API Key or Host. Add it on the UI (Models Setup) or server side (your deployment).');
+
+      return {
+        headers: {
+          'Authorization': `Bearer ${togetherKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        url: togetherHost + apiPath,
+      };
+
   }
 }
 
@@ -426,7 +473,7 @@ export function openAIChatCompletionPayload(model: OpenAIModelSchema, history: O
     ...(functions && { functions: functions, function_call: forceFunctionName ? { name: forceFunctionName } : 'auto' }),
     ...(model.temperature && { temperature: model.temperature }),
     ...(model.maxTokens && { max_tokens: model.maxTokens }),
-    n,
+    ...(n > 1 && { n }),
     stream,
   };
 }

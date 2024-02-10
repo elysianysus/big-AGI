@@ -9,7 +9,6 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { FormLabelStart } from '~/common/components/forms/FormLabelStart';
 import { GoodModal } from '~/common/components/GoodModal';
 import { GoodTooltip } from '~/common/components/GoodTooltip';
-import { settingsGap } from '~/common/app.theme';
 
 import { DLLMId, useModelsStore } from '../store-llms';
 import { findVendorById } from '../vendors/vendors.registry';
@@ -79,7 +78,7 @@ export function LLMOptionsModal(props: { id: DLLMId, onClose: () => void }) {
       }
     >
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: settingsGap }}>
+      <Box sx={{ display: 'grid', gap: 'var(--Card-padding)' }}>
         <VendorLLMOptions llmId={props.id} />
       </Box>
 
@@ -93,15 +92,16 @@ export function LLMOptionsModal(props: { id: DLLMId, onClose: () => void }) {
       <FormControl orientation='horizontal' sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <FormLabelStart title='Defaults' sx={{ minWidth: 80 }} />
         <ButtonGroup orientation='horizontal' size='sm' variant='outlined'>
-          <GoodTooltip title='Is this model the currently selected Chat model'>
+          {/* Note: use Tooltip instead of GoodTooltip here, because GoodTooltip is not working well with ButtonGroup */}
+          <Tooltip title={isChatLLM ? 'Default model for new Chats' : 'Make this model the default Chat model'}>
             <Button variant={isChatLLM ? 'solid' : undefined} onClick={() => setChatLLMId(isChatLLM ? null : props.id)}>Chat</Button>
-          </GoodTooltip>
-          <GoodTooltip title='Make this the model appointed for fast (e.g. auto-title, summarize) operations.'>
+          </Tooltip>
+          <Tooltip title='Use this Model for "fast" features, such as Auto-Title, Summarize, etc.'>
             <Button variant={isFastLLM ? 'solid' : undefined} onClick={() => setFastLLMId(isFastLLM ? null : props.id)}>Fast</Button>
-          </GoodTooltip>
-          <GoodTooltip title='Make this the model appointed for "function calling" and other structured features, such as Auto-Chart, Auto-Follow-ups, etc.'>
+          </Tooltip>
+          <Tooltip title='Use this Model for "function calling" and other structured features, such as Auto-Chart, Auto-Follow-ups, etc.'>
             <Button variant={isFuncLLM ? 'solid' : undefined} onClick={() => setFuncLLMId(isFuncLLM ? null : props.id)}>Func</Button>
-          </GoodTooltip>
+          </Tooltip>
         </ButtonGroup>
       </FormControl>
 

@@ -4,7 +4,10 @@ import { shallow } from 'zustand/shallow';
 import type { SxProps } from '@mui/joy/styles/types';
 import { Box, Chip, IconButton, List, ListItem, ListItemButton, Typography } from '@mui/joy';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import TextsmsOutlinedIcon from '@mui/icons-material/TextsmsOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+
 
 import { GoodTooltip } from '~/common/components/GoodTooltip';
 
@@ -12,6 +15,12 @@ import { DLLM, DLLMId, DModelSourceId, useModelsStore } from '../store-llms';
 import { IModelVendor } from '../vendors/IModelVendor';
 import { findVendorById } from '../vendors/vendors.registry';
 
+
+// configuration
+const SHOW_LLM_INTERFACES = false;
+
+
+const absorbListPadding: SxProps = { my: 'calc(var(--ListItem-paddingY) / -2)' };
 
 function ModelItem(props: {
   llm: DLLM,
@@ -26,12 +35,17 @@ function ModelItem(props: {
   // derived
   const { llm, onModelClicked, onModelSetHidden } = props;
 
-  const handleClick = React.useCallback((event: React.MouseEvent) => {
+  const handleLLMConfigure = React.useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
     onModelClicked(llm.id);
   }, [llm.id, onModelClicked]);
 
-  const handleUnhide = React.useCallback((event: React.MouseEvent) => {
+  const handleLLMHide = React.useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+    onModelSetHidden(llm.id, true);
+  }, [llm.id, onModelSetHidden]);
+
+  const handleLLMUnhide = React.useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
     onModelSetHidden(llm.id, false);
   }, [llm.id, onModelSetHidden]);
@@ -41,8 +55,8 @@ function ModelItem(props: {
 
   let tooltip = llm._source.label;
   if (llm.description)
-    tooltip += ' - ' + llm.description;
-  tooltip += ' - ';
+    tooltip += ' · ' + llm.description;
+  tooltip += ' · ';
   if (llm.contextTokens) {
     tooltip += llm.contextTokens.toLocaleString() + ' tokens';
     if (llm.maxOutputTokens)
@@ -50,43 +64,77 @@ function ModelItem(props: {
   } else
     tooltip += 'token count not provided';
 
+  const chipsComponentsMemo = React.useMemo(() => {
+    if (!SHOW_LLM_INTERFACES)
+      return null;
+    return llm.interfaces.map((iface, i) => {
+      switch (iface) {
+        case 'oai-chat':
+          return <Chip key={i} size='sm' variant={props.chipChat ? 'solid' : 'plain'} sx={{ boxShadow: 'xs' }}><TextsmsOutlinedIcon /></Chip>;
+        case 'oai-chat-fn':
+          return <Chip key={i} size='sm' variant={props.chipFunc ? 'solid' : 'plain'} sx={{ boxShadow: 'xs' }}>{'{}'}</Chip>;
+        case 'oai-chat-vision':
+          return <Chip key={i} size='sm' variant='plain' sx={{ boxShadow: 'xs' }}><VisibilityOutlinedIcon />️</Chip>;
+        case 'oai-chat-json':
+          return null;
+        case 'oai-complete':
+          return null;
+      }
+    }).reverse();
+  }, [llm.interfaces, props.chipChat, props.chipFunc]);
+
   return (
     <ListItem>
       <ListItemButton
-        color='primary'
         aria-label='Configure LLM'
-        onClick={handleClick}
+        onClick={handleLLMConfigure}
+        tabIndex={-1}
         sx={{
-          alignItems: 'center',
-          gap: 1,
+          width: '100%',
+          display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 1 },
         }}
       >
 
         {/* Model Name */}
         <GoodTooltip title={tooltip}>
-          <Typography sx={llm.hidden ? { color: 'neutral.plainDisabledColor' } : undefined}>
+          <Typography sx={{
+            flex: 1,
+            color: llm.hidden ? 'neutral.plainDisabledColor' : 'text.primary',
+            wordBreak: 'break-all',
+          }}>
             {label}
           </Typography>
         </GoodTooltip>
 
-        {/* --> */}
-        <Box sx={{ flex: 1 }} />
+        {/* Chips */}
+        {SHOW_LLM_INTERFACES ? (chipsComponentsMemo && (
+          <Box sx={{
+            mr: 2,
+            display: 'flex', gap: 0.5,
+            // the following line is to absorb the padding of the list item
+            // my: 'calc(var(--ListItem-paddingY) / -2)',
+          }}>
+            {chipsComponentsMemo}
+          </Box>
+        )) : <>
+          {props.chipChat && <Chip size='sm' variant='plain' sx={{ boxShadow: 'sm' }}>chat</Chip>}
+          {props.chipFast && <Chip size='sm' variant='plain' sx={{ boxShadow: 'sm' }}>fast</Chip>}
+          {props.chipFunc && <Chip size='sm' variant='plain' sx={{ boxShadow: 'sm' }}>𝑓n</Chip>}
+        </>}
 
-        {props.chipChat && <Chip size='sm' variant='plain' sx={{ boxShadow: 'sm' }}>chat</Chip>}
+        {/* Action Buttons */}
 
-        {props.chipFast && <Chip size='sm' variant='plain' sx={{ boxShadow: 'sm' }}>fast</Chip>}
-
-        {props.chipFunc && <Chip size='sm' variant='plain' sx={{ boxShadow: 'sm' }}>𝑓n</Chip>}
-
-        {llm.hidden && (
-          <IconButton aria-label='Unhide' size='sm' onClick={handleUnhide}>
-            <VisibilityOffOutlinedIcon />
+        <GoodTooltip title={llm.hidden ? 'Hidden' : 'Shown in Chat'}>
+          <IconButton aria-label={llm.hidden ? 'Unhide' : 'Hide in Chat'} size='sm' onClick={llm.hidden ? handleLLMUnhide : handleLLMHide} sx={absorbListPadding}>
+            {llm.hidden ? <VisibilityOffOutlinedIcon sx={{ opacity: 0.5, fontSize: 'md' }} /> : <VisibilityOutlinedIcon />}
           </IconButton>
-        )}
+        </GoodTooltip>
 
-        <IconButton aria-label='Configure LLM' size='sm' onClick={handleClick}>
-          <SettingsOutlinedIcon />
-        </IconButton>
+        <GoodTooltip title='Options'>
+          <IconButton aria-label='Configure LLM' size='sm' sx={absorbListPadding} onClick={handleLLMConfigure}>
+            <SettingsOutlinedIcon />
+          </IconButton>
+        </GoodTooltip>
 
       </ListItemButton>
     </ListItem>
@@ -154,13 +202,7 @@ export function ModelsList(props: {
   }
 
   return (
-    <List
-      variant='soft' size='sm'
-      sx={{
-        borderRadius: 'md',
-        ...props.sx,
-      }}
-    >
+    <List variant='outlined' sx={props.sx}>
       {items.length > 0 ? items : (
         <ListItem>
           <Typography level='body-sm'>

@@ -108,6 +108,11 @@ export function PageBar(props: { component: React.ElementType, currentApp?: NavI
     return <CommonPageMenuItems onClose={closePageMenu} />;
   }, [closePageMenu]);
 
+  const handlePageContextMenu = React.useCallback((event: React.MouseEvent) => {
+    event.preventDefault(); // added for the Right mouse click (to prevent the menu)
+    openPageMenu();
+  }, [openPageMenu]);
+
   // [Desktop] hide the app bar if the current app doesn't use it
   const desktopHide = !!props.currentApp?.hideBar && !props.isMobile;
   if (desktopHide)
@@ -153,6 +158,9 @@ export function PageBar(props: { component: React.ElementType, currentApp?: NavI
         display: 'flex', flexFlow: 'row wrap', justifyContent: 'center', alignItems: 'center',
         my: 'auto',
         gap: props.isMobile ? 0 : 1,
+        // [electron] make the blank part of the bar draggable (and not the contents)
+        WebkitAppRegion: 'drag',
+        '& > *': { WebkitAppRegion: 'no-drag' },
       }}>
         {appBarItems
           ? appBarItems
@@ -162,7 +170,12 @@ export function PageBar(props: { component: React.ElementType, currentApp?: NavI
 
       {/* Page Menu Anchor */}
       <InvertedBarCornerItem>
-        <IconButton disabled={!pageMenuAnchor /*|| (!appMenuItems && !props.isMobile)*/} onClick={openPageMenu} ref={pageMenuAnchor}>
+        <IconButton
+          ref={pageMenuAnchor}
+          disabled={!pageMenuAnchor /*|| (!appMenuItems && !props.isMobile)*/}
+          onClick={openPageMenu}
+          onContextMenu={handlePageContextMenu}
+        >
           <MoreVertIcon />
         </IconButton>
       </InvertedBarCornerItem>

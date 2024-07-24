@@ -9,7 +9,35 @@ import { wireTogetherAIListOutputSchema } from './togetherai.wiretypes';
 
 
 // [Azure] / [OpenAI]
+// https://platform.openai.com/docs/models
 const _knownOpenAIChatModels: ManualMappings = [
+
+  // GPT-4o mini
+  {
+    idPrefix: 'gpt-4o-mini-2024-07-18',
+    label: 'GPT-4o Mini (2024-07-18)',
+    description: 'Affordable model for fast, lightweight tasks. GPT-4o mini is cheaper and more capable than GPT-3.5 Turbo.',
+    contextWindow: 128000,
+    maxCompletionTokens: 16384,
+    trainingDataCutoff: 'Oct 2023',
+    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Vision, LLM_IF_OAI_Fn, LLM_IF_OAI_Json],
+    pricing: { chatIn: 0.15, chatOut: 0.60 },
+    benchmark: { cbaMmlu: 82.0 },
+  },
+  {
+    idPrefix: 'gpt-4o-mini',
+    label: 'GPT-4o mini',
+    description: 'Currently points to gpt-4o-mini-2024-07-18.',
+    symLink: 'gpt-4o-mini-2024-07-18',
+    hidden: true,
+    // copied from symlinked
+    contextWindow: 128000,
+    maxCompletionTokens: 16384,
+    trainingDataCutoff: 'Oct 2023',
+    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Vision, LLM_IF_OAI_Fn, LLM_IF_OAI_Json],
+    pricing: { chatIn: 0.15, chatOut: 0.60 },
+    benchmark: { cbaMmlu: 82.0 },
+  },
 
   // GPT-4o -> 2024-05-13
   {
@@ -24,10 +52,9 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Oct 2023',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Vision, LLM_IF_OAI_Fn, LLM_IF_OAI_Json],
     pricing: { chatIn: 5, chatOut: 15 },
-    benchmark: { cbaElo: 1310 },
+    benchmark: { cbaElo: 1287 },
   },
   {
-    isLatest: true,
     idPrefix: 'gpt-4o-2024-05-13',
     label: 'GPT-4o (2024-05-13)',
     description: 'Advanced, multimodal flagship model that’s cheaper and faster than GPT-4 Turbo.',
@@ -36,7 +63,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Oct 2023',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Vision, LLM_IF_OAI_Fn, LLM_IF_OAI_Json],
     pricing: { chatIn: 5, chatOut: 15 },
-    benchmark: { cbaElo: 1310 },
+    benchmark: { cbaElo: 1287 },
   },
 
   // GPT4 Turbo with Vision -> 2024-04-09
@@ -52,7 +79,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Dec 2023',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Vision, LLM_IF_OAI_Fn, LLM_IF_OAI_Json],
     pricing: { chatIn: 10, chatOut: 30 },
-    benchmark: { cbaElo: 1261 },
+    benchmark: { cbaElo: 1257 },
   },
   {
     idPrefix: 'gpt-4-turbo-2024-04-09',
@@ -63,7 +90,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Dec 2023',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Vision, LLM_IF_OAI_Fn, LLM_IF_OAI_Json],
     pricing: { chatIn: 10, chatOut: 30 },
-    benchmark: { cbaElo: 1261 },
+    benchmark: { cbaElo: 1257 },
   },
 
   // GPT4 Turbo Previews
@@ -80,7 +107,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Dec 2023',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Json],
     pricing: { chatIn: 10, chatOut: 30 },
-    benchmark: { cbaElo: 1251 },
+    benchmark: { cbaElo: 1245 },
   },
   {
     idPrefix: 'gpt-4-0125-preview', // GPT-4 Turbo preview model
@@ -92,7 +119,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Dec 2023',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Json],
     pricing: { chatIn: 10, chatOut: 30 },
-    benchmark: { cbaElo: 1251 },
+    benchmark: { cbaElo: 1245 },
     hidden: true,
   },
   {
@@ -105,7 +132,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Apr 2023',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
     pricing: { chatIn: 10, chatOut: 30 },
-    benchmark: { cbaElo: 1255 },
+    benchmark: { cbaElo: 1251 },
     hidden: true,
   },
 
@@ -182,7 +209,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Sep 2021',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
     pricing: { chatIn: 30, chatOut: 60 },
-    benchmark: { cbaElo: 1164 },
+    benchmark: { cbaElo: 1161 },
   },
   {
     idPrefix: 'gpt-4-0314',
@@ -192,7 +219,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Sep 2021',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
     pricing: { chatIn: 30, chatOut: 60 },
-    benchmark: { cbaElo: 1189 },
+    benchmark: { cbaElo: 1186 },
     hidden: true,
   },
   {
@@ -206,7 +233,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Sep 2021',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
     pricing: { chatIn: 30, chatOut: 60 },
-    benchmark: { cbaElo: 1164 },
+    benchmark: { cbaElo: 1161 },
   },
 
 
@@ -233,7 +260,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Sep 2021',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
     pricing: { chatIn: 0.5, chatOut: 1.5 },
-    benchmark: { cbaElo: 1104 },
+    benchmark: { cbaElo: 1105 },
   },
   {
     idPrefix: 'gpt-3.5-turbo-1106',
@@ -250,7 +277,7 @@ const _knownOpenAIChatModels: ManualMappings = [
   {
     idPrefix: 'gpt-3.5-turbo',
     label: '3.5-Turbo',
-    description: 'Currently points to gpt-3.5-turbo-0125.',
+    description: 'Currently points to gpt-3.5-turbo-0125. As of July 2024, gpt-4o-mini should be used in place of gpt-3.5-turbo, as it is cheaper, more capable, multimodal, and just as fast.',
     symLink: 'gpt-3.5-turbo-0125',
     hidden: true,
     // copied
@@ -259,7 +286,7 @@ const _knownOpenAIChatModels: ManualMappings = [
     trainingDataCutoff: 'Sep 2021',
     interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
     pricing: { chatIn: 0.5, chatOut: 1.5 },
-    benchmark: { cbaElo: 1104 },
+    benchmark: { cbaElo: 1105 },
   },
 
 
@@ -318,6 +345,49 @@ export function azureModelToModelDescription(azureDeploymentRef: string, openAIM
   // if the deployment name mataches an OpenAI model prefix, use that
   const known = _knownOpenAIChatModels.find(base => azureDeploymentRef == base.idPrefix);
   return fromManualMapping(_knownOpenAIChatModels, known ? azureDeploymentRef : openAIModelIdBase, modelCreated, modelUpdated);
+}
+
+
+// [Deepseek AI]
+const _knownDeepseekChatModels: ManualMappings = [
+  // [Models and Pricing](https://platform.deepseek.com/api-docs/pricing)
+  // [List Models](https://platform.deepseek.com/api-docs/api/list-models)
+  {
+    idPrefix: 'deepseek-chat',
+    label: 'Deepseek Chat V2',
+    description: 'Good at general tasks, 128K context length',
+    contextWindow: 128000,
+    interfaces: [LLM_IF_OAI_Chat],
+    maxCompletionTokens: 4096,
+    pricing: {
+      chatIn: 0.14,
+      chatOut: 0.28,
+    },
+  },
+  {
+    idPrefix: 'deepseek-coder',
+    label: 'Deepseek Coder V2',
+    description: 'Good at coding and math tasks, 128K context length',
+    contextWindow: 128000,
+    interfaces: [LLM_IF_OAI_Chat],
+    maxCompletionTokens: 4096,
+    pricing: {
+      chatIn: 0.14,
+      chatOut: 0.28,
+    },
+  },
+];
+
+export function deepseekModelToModelDescription(deepseekModelId: string): ModelDescriptionSchema {
+  return fromManualMapping(_knownDeepseekChatModels, deepseekModelId, undefined, undefined, {
+    idPrefix: deepseekModelId,
+    label: deepseekModelId.replaceAll(/[_-]/g, ' '),
+    description: 'New Deepseek Model',
+    contextWindow: 128000,
+    maxCompletionTokens: 4096,
+    interfaces: [LLM_IF_OAI_Chat], // assume..
+    hidden: true,
+  });
 }
 
 

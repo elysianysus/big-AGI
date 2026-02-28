@@ -16,6 +16,11 @@ import { useAutoBlocksMemoSemiStable, useTextCollapser } from './blocks.hooks';
 import { useScaledCodeSx, useScaledImageSx, useScaledTypographySx, useToggleExpansionButtonSx } from './blocks.styles';
 
 
+// configuration
+const DISABLE_MARKDOWN_PROGRESSIVE_PREPROCESS = true; // set to false to render LaTeX inline formulas as they come in, not at the end of the message
+// import '~/common/util/forceTouchToDoubleClick'; // Future: Mac trackpad: force press → double-click
+
+
 // To get to the 'ref' version (which doesn't seem to be used anymore, and was used to isolate the source of the bubble bar):
 // export const AutoBlocksRenderer = React.forwardRef<HTMLDivElement, BlocksRendererProps>((props, ref) => {
 // AutoBlocksRenderer.displayName = 'AutoBlocksRenderer';
@@ -106,6 +111,7 @@ export function AutoBlocksRenderer(props: {
   return (
     <BlocksContainer
       // ref={ref /* this will assign the ref, now not needed anymore */}
+      // data-edit-intent={props.onDoubleClick ? true : undefined /* Future: Mac Force Touch */}
       onContextMenu={props.onContextMenu}
       onDoubleClick={props.onDoubleClick}
     >
@@ -115,6 +121,8 @@ export function AutoBlocksRenderer(props: {
 
         // Optimization: only memo the non-currently-rendered components, if the message is still in flux
         const optimizeMemoBeforeLastBlock = props.optiAllowSubBlocksMemo === true && index < (autoBlocksStable.length - 1);
+        // Optimization: disable the markdown preprocessor on the last block, only do it at the end not while in progress
+        const optimizeDisableProcessorsOnLast = DISABLE_MARKDOWN_PROGRESSIVE_PREPROCESS && props.optiAllowSubBlocksMemo === true && index === (autoBlocksStable.length - 1);
 
         switch (bkInput.bkt) {
 
@@ -132,6 +140,7 @@ export function AutoBlocksRenderer(props: {
               <RenderMarkdownMemoOrNot
                 key={'md-bk-' + index}
                 content={bkInput.content}
+                disablePreprocessor={optimizeDisableProcessorsOnLast}
                 sx={scaledTypographySx}
               />
             );
@@ -143,34 +152,36 @@ export function AutoBlocksRenderer(props: {
             const RenderCodeMemoOrNot = renderCodeMemoOrNot(optimizeMemoBeforeLastBlock);
 
             // Custom handling for some of our blocks
-            let disableEnhancedRender = bkInput.isPartial || (!bkInput.title && bkInput.lines <= 3);
+            const disableBecauseInProgress = bkInput.isPartial && props.optiAllowSubBlocksMemo === true;
+            const disableBecauseTooShort = !bkInput.title && bkInput.lines <= 3;
+            let disableEnhancedRender = disableBecauseInProgress || disableBecauseTooShort;
             let enhancedStartCollapsed = false;
 
             return (props.codeRenderVariant === 'enhanced' && !disableEnhancedRender) ? (
               <EnhancedRenderCode
                 key={'code-bk-' + index}
                 semiStableId={bkInput.bkId}
-                code={bkInput.code} title={bkInput.title} isPartial={bkInput.isPartial}
+                code={bkInput.code} title={bkInput.title} isPartial={bkInput.isPartial || isTextCollapsed}
                 contentScaling={props.contentScaling}
                 fitScreen={props.fitScreen}
                 isMobile={props.isMobile}
                 initialShowHTML={props.showUnsafeHtmlCode}
                 initialIsCollapsed={enhancedStartCollapsed}
-                noCopyButton={props.blocksProcessor === 'diagram'}
+                noCopyButton={props.blocksProcessor === 'diagram' || isTextCollapsed}
                 optimizeLightweight={optimizeMemoBeforeLastBlock}
-                onReplaceInCode={setText ? handleReplaceCode : undefined}
+                onReplaceInCode={(!setText || isTextCollapsed) ? undefined : handleReplaceCode}
                 codeSx={scaledCodeSx}
               />
             ) : (
               <RenderCodeMemoOrNot
                 key={'code-bk-' + index}
                 semiStableId={bkInput.bkId}
-                code={bkInput.code} title={bkInput.title} isPartial={bkInput.isPartial}
+                code={bkInput.code} title={bkInput.title} isPartial={bkInput.isPartial || isTextCollapsed}
                 fitScreen={props.fitScreen}
                 initialShowHTML={props.showUnsafeHtmlCode /* && !bkInput.isPartial NOTE: with this, it would be only auto-rendered at the end, preventing broken renders */}
-                noCopyButton={props.blocksProcessor === 'diagram'}
+                noCopyButton={props.blocksProcessor === 'diagram' || isTextCollapsed}
                 optimizeLightweight={optimizeMemoBeforeLastBlock}
-                onReplaceInCode={setText ? handleReplaceCode : undefined}
+                onReplaceInCode={(!setText || isTextCollapsed) ? undefined : handleReplaceCode}
                 sx={scaledCodeSx}
               />
             );

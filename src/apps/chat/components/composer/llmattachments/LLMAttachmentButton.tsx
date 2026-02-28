@@ -22,7 +22,7 @@ import { RenderImageRefDBlob } from '~/modules/blocks/image/RenderImageRefDBlob'
 import { RenderImageURL } from '~/modules/blocks/image/RenderImageURL';
 
 import type { AttachmentDraft, AttachmentDraftConverterType, AttachmentDraftId } from '~/common/attachment-drafts/attachment.types';
-import { DMessageDataRef, DMessageImageRefPart, isImageRefPart } from '~/common/stores/chat/chat.fragments';
+import { DMessageDataRef, DMessageImageRefPart, isImageRefPart, isZyncAssetImageReferencePartWithLegacyDBlob } from '~/common/stores/chat/chat.fragments';
 import { LiveFileIcon } from '~/common/livefile/liveFile.icons';
 import { TooltipOutlined } from '~/common/components/TooltipOutlined';
 import { ellipsizeFront, ellipsizeMiddle } from '~/common/util/textUtils';
@@ -91,16 +91,22 @@ function InputErrorIndicator() {
 
 const converterTypeToIconMap: { [key in AttachmentDraftConverterType]: React.ComponentType<any> | null } = {
   'text': TextFieldsIcon,
+  'text-cleaner': CodeIcon,
+  'text-markdown': TextFieldsIcon,
   'rich-text': CodeIcon,
   'rich-text-cleaner': CodeIcon,
+  'rich-text-markdown': TextFieldsIcon,
   'rich-text-table': PivotTableChartIcon,
   'image-original': ImageOutlinedIcon,
   'image-resized-high': PhotoSizeSelectLargeOutlinedIcon,
   'image-resized-low': PhotoSizeSelectSmallOutlinedIcon,
   'image-to-default': ImageOutlinedIcon,
+  'image-caption': AbcIcon,
   'image-ocr': AbcIcon,
+  'pdf-auto': PictureAsPdfIcon,
   'pdf-text': PictureAsPdfIcon,
   'pdf-images': PermMediaOutlinedIcon,
+  'pdf-images-ocr': AbcIcon,
   'pdf-text-and-images': PermMediaOutlinedIcon,
   'docx-to-html': DescriptionOutlinedIcon,
   'url-page-text': TextFieldsIcon, // was LanguageIcon
@@ -115,8 +121,8 @@ const converterTypeToIconMap: { [key in AttachmentDraftConverterType]: React.Com
 };
 
 function attachmentIcons(attachmentDraft: AttachmentDraft, noTooltips: boolean, onViewImageRefPart: (imageRefPart: DMessageImageRefPart) => void) {
-  const activeConterters = attachmentDraft.converters.filter(c => c.isActive);
-  if (activeConterters.length === 0)
+  const activeConverters = attachmentDraft.converters.filter(c => c.isActive);
+  if (activeConverters.length === 0)
     return null;
 
   // Alternate icon for the Web Page Screenshot
@@ -127,15 +133,21 @@ function attachmentIcons(attachmentDraft: AttachmentDraft, noTooltips: boolean, 
   let outputSingleImageRefDBlobs: Extract<DMessageDataRef, { reftype: 'dblob' }>[] = [];
   if (!urlImageData && attachmentDraft.outputFragments.length === 1) {
     const fragment = attachmentDraft.outputFragments[0];
-    if (isImageRefPart(fragment.part) && fragment.part.dataRef && fragment.part.dataRef.reftype === 'dblob')
+    if (isZyncAssetImageReferencePartWithLegacyDBlob(fragment.part))
+      outputSingleImageRefDBlobs = [fragment.part._legacyImageRefPart!.dataRef];
+    else if (isImageRefPart(fragment.part) && fragment.part.dataRef && fragment.part.dataRef.reftype === 'dblob')
       outputSingleImageRefDBlobs = [fragment.part.dataRef];
   }
 
   const handleViewFirstImage = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (attachmentDraft.outputFragments[0] && isImageRefPart(attachmentDraft.outputFragments[0].part))
-      onViewImageRefPart(attachmentDraft.outputFragments[0].part);
+    const fragment = attachmentDraft.outputFragments[0];
+    if (!fragment) return;
+    if (isZyncAssetImageReferencePartWithLegacyDBlob(fragment.part))
+      onViewImageRefPart(fragment.part._legacyImageRefPart!);
+    else if (isImageRefPart(fragment.part))
+      onViewImageRefPart(fragment.part);
   };
 
   // Whether to render the converters
@@ -162,12 +174,13 @@ function attachmentIcons(attachmentDraft: AttachmentDraft, noTooltips: boolean, 
     )}
 
     {/* Render DBlob referred images in place of converter icons */}
-    {outputSingleImageRefDBlobs.map((dataRef, i) => dataRef && (
+    {outputSingleImageRefDBlobs.map((dataRef, _i) => dataRef && (
       <TooltipOutlined key={`image-${dataRef.dblobAssetId}`} title={noTooltips ? null : <>View converted image{/* <br/>{dataRef?.bytesSize?.toLocaleString()} bytes */}</>} placement='top-start'>
         <div>
           <RenderImageRefDBlob
             dataRefDBlobAssetId={dataRef.dblobAssetId}
             dataRefMimeType={dataRef.mimeType}
+            dataRefBytesSize={dataRef.bytesSize}
             variant='attachment-button'
             scaledImageSx={attachmentIconSx}
             onClick={handleViewFirstImage}
@@ -176,8 +189,8 @@ function attachmentIcons(attachmentDraft: AttachmentDraft, noTooltips: boolean, 
       </TooltipOutlined>
     ))}
 
-    {/*{activeConterters.some(c => c.id.startsWith('url-page-')) ? <LanguageIcon sx={{ opacity: 0.2, ml: -2.5 }} /> : null}*/}
-    {renderConverterIcons && activeConterters.map((_converter, idx) => {
+    {/*{activeConverters.some(c => c.id.startsWith('url-page-')) ? <LanguageIcon sx={{ opacity: 0.2, ml: -2.5 }} /> : null}*/}
+    {renderConverterIcons && activeConverters.map((_converter, idx) => {
       const Icon = converterTypeToIconMap[_converter.id] ?? null;
       return !Icon ? null : (
         <TooltipOutlined key={`${_converter.id}-${idx}`} title={noTooltips ? null : `Attached as ${_converter.name}`} placement='top-start'>
@@ -191,13 +204,21 @@ function attachmentIcons(attachmentDraft: AttachmentDraft, noTooltips: boolean, 
 
 function attachmentLabelText(attachmentDraft: AttachmentDraft): string {
   const converter = attachmentDraft.converters.find(c => c.isActive) ?? null;
-  if (converter && attachmentDraft.label === 'Rich Text') {
-    if (converter.id === 'rich-text-table')
-      return 'Rich Table';
-    if (converter.id === 'rich-text-cleaner')
+  if (converter && attachmentDraft.label === 'Text') {
+    if (converter.id === 'text-markdown')
+      return 'Markdown';
+    if (converter.id === 'text-cleaner')
       return 'Clean HTML';
+  }
+  if (converter && attachmentDraft.label === 'Rich Text') {
     if (converter.id === 'rich-text')
       return 'Rich HTML';
+    if (converter.id === 'rich-text-markdown')
+      return 'Markdown';
+    if (converter.id === 'rich-text-cleaner')
+      return 'Clean HTML';
+    if (converter.id === 'rich-text-table')
+      return 'Rich Table';
   }
   return ellipsizeFront(attachmentDraft.label, 22);
 }
@@ -220,9 +241,10 @@ function LLMAttachmentButton(props: {
   const isUnconvertible = !draft.converters.length;
   const isOutputLoading = draft.outputsConverting;
   const isOutputMissing = !draft.outputFragments.length;
+  const isOutputWarned = !!draft.outputWarnings?.length;
   const hasLiveFiles = draft.outputFragments.some(_f => _f.liveFileId);
 
-  const showWarning = isUnconvertible || (isOutputMissing || !llmSupportsAllFragments);
+  const showWarning = isUnconvertible || (isOutputMissing || !llmSupportsAllFragments) || isOutputWarned;
 
 
   // handlers
@@ -249,6 +271,17 @@ function LLMAttachmentButton(props: {
   if (isInputLoading)
     return <InputLoadingPlaceholder label={draft.label} />;
 
+  // tooltip for truncated filenames (only show when menu is closed)
+  const displayedLabel = attachmentLabelText(draft);
+  const showFilenameTooltip = !props.menuShown && !isOutputLoading && displayedLabel !== draft.label;
+
+  // label element (reused with/without tooltip)
+  const labelElement = (
+    <Typography level='title-sm' sx={{ whiteSpace: 'nowrap' }}>
+      {isOutputLoading ? 'Converting... ' : displayedLabel}
+    </Typography>
+  );
+
   return (
     <Button
       size='sm'
@@ -272,10 +305,11 @@ function LLMAttachmentButton(props: {
       {/* Icons: Web Page Screenshot, Converter[s] */}
       {attachmentIcons(draft, props.menuShown, props.onViewImageRefPart)}
 
-      {/* Label */}
-      <Typography level='title-sm' sx={{ whiteSpace: 'nowrap' }}>
-        {isOutputLoading ? 'Converting... ' : attachmentLabelText(draft)}
-      </Typography>
+      {/* Label (with tooltip for truncated filenames) */}
+      {showFilenameTooltip
+        ? <TooltipOutlined title={<span style={{ wordBreak: 'break-all' }}>{draft.label}</span>}>{labelElement}</TooltipOutlined>
+        : labelElement
+      }
 
       {/* Is Converting icon */}
       {isOutputLoading && <CircularProgress color='success' size='sm' />}

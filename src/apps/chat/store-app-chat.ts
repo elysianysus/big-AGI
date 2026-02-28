@@ -3,9 +3,14 @@ import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 
 import type { DLLMId } from '~/common/stores/llms/llms.types';
+import { Is } from '~/common/util/pwaUtils';
 
 
 export type ChatAutoSpeakType = 'off' | 'firstLine' | 'all';
+
+export type ChatThinkingPolicy = 'last-only' | 'all' | 'discard-all';
+
+export type TokenCountingMethod = 'accurate' | 'approximate';
 
 
 // Chat Settings (Chat AI & Chat UI)
@@ -35,6 +40,12 @@ interface AppChatStore {
   autoVndAntBreakpoints: boolean;
   setAutoVndAntBreakpoints: (autoVndAntBreakpoints: boolean) => void;
 
+  chatThinkingPolicy: ChatThinkingPolicy,
+  setChatThinkingPolicy: (chatThinkingPolicy: ChatThinkingPolicy) => void;
+
+  tokenCountingMethod: TokenCountingMethod;
+  setTokenCountingMethod: (tokenCountingMethod: TokenCountingMethod) => void;
+
   // chat UI
 
   clearFilters: () => void;
@@ -47,6 +58,9 @@ interface AppChatStore {
 
   filterHasStars: boolean;
   toggleFilterHasStars: () => void;
+
+  filterIsArchived: boolean;
+  toggleFilterIsArchived: () => void;
 
   micTimeoutMs: number;
   setMicTimeoutMs: (micTimeoutMs: number) => void;
@@ -98,9 +112,15 @@ const useAppChatStore = create<AppChatStore>()(persist(
     autoVndAntBreakpoints: true, // 2024-08-24: on as it saves user's money
     setAutoVndAntBreakpoints: (autoVndAntBreakpoints: boolean) => _set({ autoVndAntBreakpoints }),
 
+    chatThinkingPolicy: 'last-only',
+    setChatThinkingPolicy: (chatThinkingPolicy: ChatThinkingPolicy) => _set({ chatThinkingPolicy }),
+
+    tokenCountingMethod: Is.Desktop ? 'accurate' : 'approximate',
+    setTokenCountingMethod: (tokenCountingMethod: TokenCountingMethod) => _set({ tokenCountingMethod }),
+
     // Chat UI
 
-    clearFilters: () => _set({ filterHasDocFragments: false, filterHasImageAssets: false, filterHasStars: false }),
+    clearFilters: () => _set({ filterIsArchived: false, filterHasDocFragments: false, filterHasImageAssets: false, filterHasStars: false }),
 
     filterHasDocFragments: false,
     toggleFilterHasDocFragments: () => _set(({ filterHasDocFragments }) => ({ filterHasDocFragments: !filterHasDocFragments })),
@@ -111,7 +131,10 @@ const useAppChatStore = create<AppChatStore>()(persist(
     filterHasStars: false,
     toggleFilterHasStars: () => _set(({ filterHasStars }) => ({ filterHasStars: !filterHasStars })),
 
-    micTimeoutMs: 2000,
+    filterIsArchived: false,
+    toggleFilterIsArchived: () => _set(({ filterIsArchived }) => ({ filterIsArchived: !filterIsArchived })),
+
+    micTimeoutMs: 5000,
     setMicTimeoutMs: (micTimeoutMs: number) => _set({ micTimeoutMs }),
 
     // new default on 2024-11-18: disable icons by default, too confusing
@@ -168,6 +191,8 @@ export const useChatAutoAI = () => useAppChatStore(useShallow(state => ({
   autoSuggestQuestions: state.autoSuggestQuestions,
   autoTitleChat: state.autoTitleChat,
   autoVndAntBreakpoints: state.autoVndAntBreakpoints,
+  chatThinkingPolicy: state.chatThinkingPolicy,
+  tokenCountingMethod: state.tokenCountingMethod,
   setAutoSpeak: state.setAutoSpeak,
   setAutoSuggestAttachmentPrompts: state.setAutoSuggestAttachmentPrompts,
   setAutoSuggestDiagrams: state.setAutoSuggestDiagrams,
@@ -175,6 +200,8 @@ export const useChatAutoAI = () => useAppChatStore(useShallow(state => ({
   setAutoSuggestQuestions: state.setAutoSuggestQuestions,
   setAutoTitleChat: state.setAutoTitleChat,
   setAutoVndAntBreakpoints: state.setAutoVndAntBreakpoints,
+  setChatThinkingPolicy: state.setChatThinkingPolicy,
+  setTokenCountingMethod: state.setTokenCountingMethod,
 })));
 
 export const getChatAutoAI = (): {
@@ -185,6 +212,7 @@ export const getChatAutoAI = (): {
   autoSuggestQuestions: boolean,
   autoTitleChat: boolean,
   autoVndAntBreakpoints: boolean,
+  chatThinkingPolicy: ChatThinkingPolicy,
 } => useAppChatStore.getState();
 
 export const useChatAutoSuggestHTMLUI = (): boolean =>
@@ -192,6 +220,9 @@ export const useChatAutoSuggestHTMLUI = (): boolean =>
 
 export const useChatAutoSuggestAttachmentPrompts = (): boolean =>
   useAppChatStore(state => state.autoSuggestAttachmentPrompts);
+
+export const getChatTokenCountingMethod = (): TokenCountingMethod =>
+  useAppChatStore.getState().tokenCountingMethod;
 
 export const useChatMicTimeoutMsValue = (): number =>
   useAppChatStore(state => state.micTimeoutMs);
@@ -204,12 +235,14 @@ export function useChatDrawerFilters() {
     filterHasDocFragments: state.filterHasDocFragments,
     filterHasImageAssets: state.filterHasImageAssets,
     filterHasStars: state.filterHasStars,
+    filterIsArchived: state.filterIsArchived,
     showPersonaIcons: state.showPersonaIcons2,
     showRelativeSize: state.showRelativeSize,
     clearFilters: state.clearFilters,
     toggleFilterHasDocFragments: state.toggleFilterHasDocFragments,
     toggleFilterHasImageAssets: state.toggleFilterHasImageAssets,
     toggleFilterHasStars: state.toggleFilterHasStars,
+    toggleFilterIsArchived: state.toggleFilterIsArchived,
     toggleShowPersonaIcons: state.toggleShowPersonaIcons,
     toggleShowRelativeSize: state.toggleShowRelativeSize,
   })));

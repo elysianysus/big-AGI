@@ -1,8 +1,10 @@
 import * as React from 'react';
 
 import type { SelectSlotsAndSlotProps } from '@mui/joy/Select/SelectProps';
-import { Box, ListDivider, listItemButtonClasses, ListItemDecorator, Option, optionClasses, Select, selectClasses } from '@mui/joy';
+import { Box, ListDivider, listItemButtonClasses, ListItemDecorator, listItemDecoratorClasses, Option, optionClasses, Select, selectClasses } from '@mui/joy';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+
+import { ListItemGroupCollapser } from '~/common/components/ListItemGroupCollapser';
 
 
 // set to true to enable the dense mode, which is default in the rest of the app
@@ -11,7 +13,7 @@ const useDenseDropdowns = false;
 const useBigIcons = true;
 
 
-const _selectSlotProps: SelectSlotsAndSlotProps<false>['slotProps'] = {
+export const optimaSelectSlotProps: SelectSlotsAndSlotProps<false>['slotProps'] = {
   root: {
     sx: {
       backgroundColor: 'transparent',
@@ -20,17 +22,24 @@ const _selectSlotProps: SelectSlotsAndSlotProps<false>['slotProps'] = {
       // disappear when the 'agi-gone' class is set
       '&.agi-gone': {
         display: 'none',
-      },
-    },
-  },
+      } as const,
+      // fade when the 'agi-faded' class is set
+      '&.agi-faded button': {
+        opacity: 0.667,
+      } as const,
+    } as const,
+  } as const,
+
   button: {
     className: 'agi-ellipsize',
     sx: {
       // these + the ellipsize class will ellipsize the text in the button
       display: 'inline-block',
       maxWidth: 300,
-    },
-  },
+    } as const,
+  } as const,
+
+  // this is the down-arrow icon half faded
   indicator: {
     sx: {
       // additive white 50%
@@ -39,9 +48,10 @@ const _selectSlotProps: SelectSlotsAndSlotProps<false>['slotProps'] = {
       transition: '0.2s',
       [`&.${selectClasses.expanded}`]: {
         transform: 'rotate(-180deg)',
-      },
-    },
-  },
+      } as const,
+    } as const,
+  } as const,
+
   listbox: {
     // Note: we explored disablePortal, which could optimize performance, but it breaks the colors (as they'll look inverted)
     // disablePortal: false,
@@ -65,16 +75,21 @@ const _selectSlotProps: SelectSlotsAndSlotProps<false>['slotProps'] = {
       // Option: clip width to 160...360px
       [`& .${optionClasses.root}`]: {
         maxWidth: 'min(360px, calc(100dvw - 1rem))',
-        minWidth: 160,
-      },
+        minWidth: 200,
+      } as const,
+
+      // Decorator: icon size
+      [`& .${listItemDecoratorClasses.root}`]: {
+        fontSize: 'var(--joy-fontSize-lg)',
+      } as const,
 
       // Button styles
       [`& .${listItemButtonClasses.root}`]: {
-        minWidth: 160,
-      },
-    },
-  },
-};
+        minWidth: 200,
+      } as const,
+    } as const,
+  } as const,
+} as const;
 
 const _styles = {
 
@@ -85,10 +100,6 @@ const _styles = {
   itemsScrollable: {
     overflow: 'auto',
     paddingBlock: 'var(--ListDivider-gap)',
-  } as const,
-
-  symbolDecorator: {
-    fontSize: 'xl',
   } as const,
 
   divider: {
@@ -119,15 +130,19 @@ export type OptimaBarControlMethods = {
 function OptimaBarDropdown<TValue extends string>(props: {
   // required
   items: OptimaDropdownItems,
-  value: TValue | null,
+  value: undefined | TValue | null, // undefined means no value is present, null means 'no/unset/force-empty' value
   onChange: (value: TValue | null) => void,
   // optional
   activeEndDecorator?: React.JSX.Element,
   prependOption?: React.JSX.Element
   appendOption?: React.JSX.Element,
   placeholder?: string,
-  showSymbols?: boolean,
+  showSymbols?: boolean | 'compact',
   showGone?: boolean,
+  showFaded?: boolean,
+  // collapsible separators: when provided, separators become clickable toggle buttons
+  collapsedSeparators?: ReadonlySet<string>,
+  onSeparatorClick?: (key: string) => void,
 }, ref: React.Ref<OptimaBarControlMethods>) {
 
   // state
@@ -161,14 +176,14 @@ function OptimaBarDropdown<TValue extends string>(props: {
   return (
     <Select
       variant='plain'
-      value={props.value}
+      value={props.value ?? null /* remove 'undefined' as an option */}
       onChange={handleOnChange}
       placeholder={props.placeholder}
       listboxOpen={listboxOpen}
       onListboxOpenChange={handleOnOpenChange}
       indicator={<KeyboardArrowDownIcon />}
-      slotProps={_selectSlotProps}
-      className={props.showGone ? 'agi-gone' : ''}
+      slotProps={optimaSelectSlotProps}
+      className={props.showGone ? 'agi-gone' : props.showFaded ? 'agi-faded' : ''}
     >
 
       {/* Prepender */}
@@ -183,33 +198,37 @@ function OptimaBarDropdown<TValue extends string>(props: {
           const isActive = _itemKey === props.value;
 
           // Label & Decorators
-          let label = _item.title || '';
-          let decorator: React.ReactNode = null;
-          if (props.showSymbols) {
-            if (_item.icon)
-              decorator = <ListItemDecorator>{_item.icon}</ListItemDecorator>;
-            else if (_item.symbol !== undefined)
-              decorator = <ListItemDecorator sx={_styles.symbolDecorator}>{_item.symbol || ''}</ListItemDecorator>;
-            if (_item.symbol)
-              label = `${_item.symbol} ${label}`;
-          }
+          const safeTitle = _item.title || '';
+          const label = (props.showSymbols && _item.symbol && !(_item.title === 'Default' && _item.symbol === '🧠')) ? `${_item.symbol} ${safeTitle}` : safeTitle;
+          const iconOrSymbol = _item.icon || _item.symbol || '';
 
-          return _item.type === 'separator' ? (
-            <ListDivider key={_itemKey || `sep-${idx}`}>
-              {/*<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, '--Icon-fontSize': 'var(--joy-fontSize-lg)' }}>*/}
-              {/*{_item.icon} */}
-              {_item.title}
-              {/*</Box>*/}
-            </ListDivider>
-          ) : (
+          if (_item.type === 'separator')
+            return props.onSeparatorClick ? (
+              <ListItemGroupCollapser
+                key={_itemKey}
+                id={_itemKey}
+                label={safeTitle}
+                isCollapsed={!!props.collapsedSeparators?.has(_itemKey)}
+                onToggleCollapse={props.onSeparatorClick}
+              />
+            ) : (
+              <ListDivider key={_itemKey || `sep-${idx}`}>
+                {/*<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, '--Icon-fontSize': 'var(--joy-fontSize-lg)' }}>*/}
+                {/*{_item.icon} */}
+                {_item.title}
+                {/*</Box>*/}
+              </ListDivider>
+            );
+
+          return (
             <Option key={_itemKey} value={_itemKey} label={label}>
               {/* Icon / Symbol */}
-              {decorator}
+              {(props.showSymbols === true || (props.showSymbols === 'compact' && !!iconOrSymbol)) && <ListItemDecorator>
+                {iconOrSymbol}
+              </ListItemDecorator>}
 
               {/* Text */}
-              <div className='agi-ellipsize'>
-                {_item.title}
-              </div>
+              <div className='agi-ellipsize'>{safeTitle}</div>
 
               {/* Optional End Decorator */}
               {isActive && props.activeEndDecorator}

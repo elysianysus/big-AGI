@@ -13,6 +13,7 @@ import TextureIcon from '@mui/icons-material/Texture';
 import { ContentScaling, themeScalingMap } from '~/common/app.theme';
 import { DMessageAttachmentFragment, DMessageFragmentId, DVMimeType, isDocPart } from '~/common/stores/chat/chat.fragments';
 import { LiveFileIcon } from '~/common/livefile/liveFile.icons';
+import { PhVoice } from '~/common/components/icons/phosphor/PhVoice';
 import { TooltipOutlined } from '~/common/components/TooltipOutlined';
 import { ellipsizeMiddle } from '~/common/util/textUtils';
 import { useLiveFileMetadata } from '~/common/livefile/useLiveFileMetadata';
@@ -23,8 +24,51 @@ export const DocSelColor: ColorPaletteProp = 'primary';
 const DocUnselColor: ColorPaletteProp = 'primary';
 
 
+const _styles = {
+  label: {
+    whiteSpace: 'nowrap',
+    fontWeight: 'md',
+    minWidth: 48,
+  },
+} as const;
+
+
 export function buttonIconForFragment(part: DMessageAttachmentFragment['part']): React.ComponentType<any> {
-  switch (part.pt) {
+  const pt = part.pt;
+  switch (pt) {
+
+    // Reference Attachment Fragment
+    case 'reference':
+      const rt = part.rt;
+      switch (rt) {
+        case 'zync':
+          const rZType = part.zType;
+          switch (rZType) {
+            case 'asset':
+              const assetType = part.assetType;
+              switch (assetType) {
+                case 'image':
+                  return ImageOutlinedIcon;
+                case 'audio':
+                  return PhVoice;
+                default:
+                  const _exhaustiveCheck: never = assetType;
+                  return TextureIcon; // missing zync asset type
+              }
+            default:
+              const _exhaustiveCheck: never = rZType;
+              return TextureIcon; // missing zync entity type
+          }
+
+        case '_sentinel':
+          return TextureIcon; // nothing to do here - this is a sentinel type
+
+        default:
+          const _exhaustiveCheck: never = rt;
+          return TextureIcon; // case missing
+      }
+
+    // Document Attachment Fragment
     case 'doc':
       switch (part.vdt) {
         case DVMimeType.TextPlain:
@@ -43,12 +87,20 @@ export function buttonIconForFragment(part: DMessageAttachmentFragment['part']):
         // case 'text/markdown':
         //   return CodeIcon;
         default:
-          return TextureIcon;
+          const _exhaustiveCheck: never = part.vdt;
+          return TextureIcon; // unknown doc type
       }
+
+    // [OLD-style] Image Attachment Fragment
     case 'image_ref':
       return ImageOutlinedIcon;
+
     case '_pt_sentinel':
-      return TextureIcon;
+      return TextureIcon; // nothing to do here - this is a sentinel type
+
+    default:
+      const _exhaustiveCheck: never = pt;
+      return TextureIcon; // case missing
   }
 }
 
@@ -103,9 +155,13 @@ export function DocAttachmentFragmentButton(props: {
   if (!isDocPart(fragment.part))
     return 'Unexpected: ' + fragment.part.pt;
 
-  const buttonText = ellipsizeMiddle(fragment.part.l1Title || fragment.title || 'Document', 28 /* totally arbitrary length */);
-
   const Icon = isSelected ? EditRoundedIcon : buttonIconForFragment(fragment.part);
+
+  const fullTitle = fragment.part.l1Title || fragment.title || 'Document';
+  const buttonText = ellipsizeMiddle(fullTitle, 28 /* totally arbitrary length */);
+  const showFilenameTooltip = fullTitle !== buttonText;
+
+  const labelContent = <Box sx={_styles.label}>{buttonText}</Box>;
 
   return (
     <Button
@@ -128,9 +184,10 @@ export function DocAttachmentFragmentButton(props: {
         </Box>
       )}
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', paddingX: '0.5rem' }}>
-        <Box sx={{ whiteSpace: 'nowrap', fontWeight: 'md', minWidth: 48 }}>
-          {buttonText}
-        </Box>
+        {showFilenameTooltip
+          ? <TooltipOutlined title={<span style={{ wordBreak: 'break-all' }}>{fullTitle}</span>}>{labelContent}</TooltipOutlined>
+          : labelContent
+        }
         {/*<Box sx={{ fontSize: 'xs', fontWeight: 'sm' }}>*/}
         {/*  {fragment.caption}*/}
         {/*</Box>*/}

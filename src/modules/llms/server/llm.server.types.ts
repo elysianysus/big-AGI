@@ -1,7 +1,10 @@
-import { z } from 'zod';
+import * as z from 'zod/v4';
 
+import type { DModelParameterId } from '~/common/stores/llms/llms.parameters'; // imported for making sure we sync
 import { LLMS_ALL_INTERFACES } from '~/common/stores/llms/llms.types';
 
+
+export type RequestAccessValues = { headers: HeadersInit; url: string; };
 
 export type ModelDescriptionSchema = z.infer<typeof ModelDescription_schema>;
 
@@ -16,10 +19,8 @@ export type ModelDescriptionSchema = z.infer<typeof ModelDescription_schema>;
 /// Benchmark
 
 const BenchmarksScores_schema = z.object({
-  cbaElo: z.number().optional(),
-  cbaMmlu: z.number().optional(),
-  // heCode: z.number().optional(), // HumanEval, code, 0-shot
-  // vqaMmmu: z.number().optional(), // Visual Question Answering, MMMU, 0-shot
+  cbaElo: z.number().optional(), // Chat Bot Arena ELO score
+  // removed others for now to reduce noise - also maybe we shall have a mapping table instead
 });
 
 
@@ -74,33 +75,87 @@ const ModelParameterSpec_schema = z.object({
    */
   paramId: z.enum([
     'llmTopP',
-    'llmVndGeminiShowThoughts',  // vendor-specific
-    'llmVndOaiReasoningEffort',  // vendor-specific
-    // Optimization: we are not using this, but linking the 'presence' of the spec to the vndOaiReasoningEffort spec.
-    // This may change in the future if OpenAI decouples reasoning effort and markdown restoration.
-    // 'llmVndOaiRestoreMarkdown',
-  ]),
+    'llmForceNoStream',
+    // Vendor-specific effort params (converge to unified `effort` wire field)
+    'llmVndAntEffort',
+    'llmVndGemEffort',
+    'llmVndOaiEffort',
+    'llmVndMiscEffort',
+    // Anthropic
+    'llmVndAnt1MContext',
+    'llmVndAntInfSpeed',
+    'llmVndAntSkills',
+    'llmVndAntThinkingBudget',
+    'llmVndAntWebFetch',
+    'llmVndAntWebSearch',
+    // Bedrock
+    'llmVndBedrockAPI',
+    // Gemini
+    'llmVndGeminiAspectRatio',
+    'llmVndGeminiCodeExecution',
+    'llmVndGeminiComputerUse',
+    'llmVndGeminiGoogleSearch',
+    'llmVndGeminiImageSize',
+    'llmVndGeminiMediaResolution',
+    'llmVndGeminiThinkingBudget',
+    // 'llmVndGeminiUrlContext',
+    // Moonshot
+    'llmVndMoonshotWebSearch',
+    // OpenAI
+    'llmVndOaiRestoreMarkdown',
+    'llmVndOaiVerbosity',
+    'llmVndOaiWebSearchContext',
+    'llmVndOaiWebSearchGeolocation',
+    'llmVndOaiImageGeneration',
+    'llmVndOaiCodeInterpreter',
+    // OpenRouter
+    'llmVndOrtWebSearch',
+    // Perplexity
+    'llmVndPerplexityDateFilter',
+    'llmVndPerplexitySearchMode',
+    // xAI
+    'llmVndXaiCodeExecution',
+    'llmVndXaiSearchInterval',
+    'llmVndXaiWebSearch',
+    'llmVndXaiXSearch',
+    'llmVndXaiXSearchHandles',
+  ] satisfies DModelParameterId[]),
   required: z.boolean().optional(),
   hidden: z.boolean().optional(),
+  initialValue: z.number().or(z.string()).or(z.boolean()).nullable().optional(),
+  // special params
+  enumValues: z.array(z.string()).optional(), // restrict enum values for this model
+  rangeOverride: z.tuple([z.number(), z.number()]).optional(), // [min, max]
 });
 
 export const ModelDescription_schema = z.object({
   id: z.string(),
+  idVariant: z.string().optional(), // only used on the client by '_createDLLMFromModelDescription' to instantiate 'unique' copies of the same model
   label: z.string(),
-  created: z.number().optional(),
-  updated: z.number().optional(),
+  created: z.int().optional(),
+  updated: z.int().optional(),
   description: z.string(),
-  contextWindow: z.number().nullable(),
-  interfaces: z.array(z.enum(LLMS_ALL_INTERFACES)),
+  contextWindow: z.int().nullable(),
+  interfaces: z.array(z.union([z.enum(LLMS_ALL_INTERFACES), z.string()])), // backward compatibility: to not Break client-side interface parsing on newer server
   parameterSpecs: z.array(ModelParameterSpec_schema).optional(),
-  maxCompletionTokens: z.number().optional(),
+  maxCompletionTokens: z.int().optional(), // initial parameter value for 'llmResponseTokens'
   // rateLimits: rateLimitsSchema.optional(),
-  trainingDataCutoff: z.string().optional(),
   benchmark: BenchmarksScores_schema.optional(),
   chatPrice: PricingChatGenerate_schema.optional(),
   hidden: z.boolean().optional(),
-  // TODO: add inputTypes/Kinds..
+  // parameter initializers for vendor-specific defaults
+  initialTemperature: z.number().nullish(), // vendor-specific initial 'llmTemperature' (e.g. Gemini has 1.0)
 });
+
+
+/// Vendor Lookup for OpenRouter parameter inheritance
+// Each vendor's lookup filters to only what works through OpenRouter's OAI-compatible API.
+// OpenRouter merges these with its own auto-detected interfaces and params.
+export type OrtVendorLookupResult = {
+  interfaces?: ModelDescriptionSchema['interfaces'];
+  parameterSpecs?: ModelDescriptionSchema['parameterSpecs'];
+  initialTemperature?: number; // vendor-specific default (e.g. Gemini 1.0); undefined = use global fallback (0.5)
+};
 
 
 /// ListModels Response

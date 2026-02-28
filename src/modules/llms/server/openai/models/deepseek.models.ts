@@ -1,41 +1,35 @@
-import { LLM_IF_HOTFIX_NoTemperature, LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Json, LLM_IF_OAI_Reasoning } from '~/common/stores/llms/llms.types';
+import { LLM_IF_HOTFIX_StripImages, LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Json, LLM_IF_OAI_Reasoning } from '~/common/stores/llms/llms.types';
 
 import type { ModelDescriptionSchema } from '../../llm.server.types';
 
-import { fromManualMapping, ManualMappings } from './models.data';
+import { fromManualMapping, ManualMappings } from '../../models.mappings';
 
+
+const IF_3 = [LLM_IF_HOTFIX_StripImages, LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Json];
 
 const _knownDeepseekChatModels: ManualMappings = [
   // [Models and Pricing](https://api-docs.deepseek.com/quick_start/pricing)
   // [List Models](https://api-docs.deepseek.com/api/list-models)
+  // [Release Notes - V3.2](https://api-docs.deepseek.com/news/news251201) - Released 2025-12-01
   {
     idPrefix: 'deepseek-reasoner',
-    label: 'DeepSeek Reasoner R1',
-    description: 'Reasoning model with Chain-of-Thought capabilities, 64K context length. No discount.',
-    contextWindow: 65536,
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Reasoning, LLM_IF_HOTFIX_NoTemperature],
-    maxCompletionTokens: 8192,
-    chatPrice: { input: 0.55, output: 2.19, cache: { cType: 'oai-ac', read: 0.14 } },
+    label: 'DeepSeek V3.2 (Reasoner)',
+    description: 'Reasoning model with Chain-of-Thought capabilities, 128K context length. Supports JSON output and function calling.',
+    contextWindow: 131072, // 128K
+    interfaces: [...IF_3, LLM_IF_OAI_Reasoning],
+    maxCompletionTokens: 32768, // default, max: 65536
+    chatPrice: { input: 0.28, output: 0.42, cache: { cType: 'oai-ac', read: 0.028 } },
+    benchmark: { cbaElo: 1412 }, //deepseek-v3.2-exp-thinking
   },
   {
     idPrefix: 'deepseek-chat',
-    label: 'DeepSeek Chat V3',
-    description: 'General-purpose model with 64K context length. Discounted pricing until Feb 8, 2025.',
-    contextWindow: 65536,
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Json],
-    maxCompletionTokens: 8192,
-    // chatPrice: { input: 0.27, output: 1.10, cache: { cType: 'oai-ac', read: 0.07 } },
-    chatPrice: { input: 0.14, output: 0.28, cache: { cType: 'oai-ac', read: 0.014 } },
-  },
-  {
-    idPrefix: 'deepseek-coder',
-    label: 'DeepSeek Coder V2',
-    description: 'Good at coding and math tasks, 128K context length',
-    contextWindow: 128000,
-    interfaces: [LLM_IF_OAI_Chat],
-    maxCompletionTokens: 4096,
-    // chatPrice: { input: 0.14, output: 0.28 },
-    hidden: true,
+    label: 'DeepSeek V3.2',
+    description: 'General-purpose model with 128K context length. Supports JSON output and function calling.',
+    contextWindow: 131072, // 128K
+    interfaces: IF_3,
+    maxCompletionTokens: 8192, // default is 4096, max is 8192
+    chatPrice: { input: 0.28, output: 0.42, cache: { cType: 'oai-ac', read: 0.028 } },
+    benchmark: { cbaElo: 1420 }, // deepseek-v3.2
   },
 ];
 
@@ -54,7 +48,7 @@ export function deepseekModelToModelDescription(deepseekModelId: string): ModelD
     description: 'New Deepseek Model',
     contextWindow: 128000,
     maxCompletionTokens: 4096,
-    interfaces: [LLM_IF_OAI_Chat], // assume..
+    interfaces: [LLM_IF_OAI_Chat],
     hidden: true,
   });
 }
@@ -67,3 +61,8 @@ export function deepseekModelSort(a: ModelDescriptionSchema, b: ModelDescription
     return aIndex - bIndex;
   return a.id.localeCompare(b.id);
 }
+
+
+// [DeepSeek, 2025-12-15] V3.2-Speciale endpoint has expired and been removed
+// The temporary endpoint (v3.2_speciale_expires_on_20251215) was decommissioned on Dec 15, 2025 15:59 UTC
+// To re-enable variants, use createVariantInjector() from llm.server.variants.ts

@@ -1,13 +1,13 @@
 import type { StateCreator } from 'zustand/vanilla';
 
-import { AixChatGenerateContent_DMessage, aixChatGenerateContent_DMessage_FromConversation } from '~/modules/aix/client/aix.client';
+import { AixChatGenerateContent_DMessageGuts, aixChatGenerateContent_DMessage_FromConversation } from '~/modules/aix/client/aix.client';
 
 import type { DLLMId } from '~/common/stores/llms/llms.types';
 import { agiUuid } from '~/common/util/idUtils';
 import { createDMessageEmpty, DMessage, duplicateDMessage, messageWasInterruptedAtStart } from '~/common/stores/chat/chat.message';
-import { createPlaceholderVoidFragment } from '~/common/stores/chat/chat.fragments';
+import { createPlaceholderVoidFragment, DMessageFragment, DMessageFragmentId } from '~/common/stores/chat/chat.fragments';
 import { findLLMOrThrow } from '~/common/stores/llms/store-llms';
-import { getUXLabsHighPerformance } from '~/common/state/store-ux-labs';
+import { getUXLabsHighPerformance } from '~/common/stores/store-ux-labs';
 import { splitSystemMessageFromHistory } from '~/common/stores/chat/chat.conversation';
 
 import type { RootStoreSlice } from '../store-beam_vanilla';
@@ -40,7 +40,7 @@ export function createBRayEmpty(llmId: DLLMId | null): BRay {
   };
 }
 
-function rayScatterStart(ray: BRay, llmId: DLLMId | null, inputHistory: DMessage[], onlyIdle: boolean, scatterStore: ScatterStoreSlice): BRay {
+function rayScatterStart(ray: BRay, llmId: DLLMId | null, inputHistory: DMessage[], onlyIdle: boolean, playNice: boolean, scatterStore: ScatterStoreSlice): BRay {
   if (ray.genAbortController)
     return ray;
   if (onlyIdle && ray.status !== 'empty')
@@ -60,7 +60,7 @@ function rayScatterStart(ray: BRay, llmId: DLLMId | null, inputHistory: DMessage
 
   const abortController = new AbortController();
 
-  const onMessageUpdated = (incrementalMessage: AixChatGenerateContent_DMessage, completed: boolean) => {
+  const onMessageUpdated = (incrementalMessage: AixChatGenerateContent_DMessageGuts, completed: boolean) => {
     const { fragments: incrementalFragments, ...incrementalRest } = incrementalMessage;
     _rayUpdate(ray.rayId, (ray) => ({
       message: {
@@ -79,7 +79,7 @@ function rayScatterStart(ray: BRay, llmId: DLLMId | null, inputHistory: DMessage
     scatterSystemInstruction,
     scatterInputHistory,
     'beam-scatter', ray.rayId,
-    { abortSignal: abortController.signal, throttleParallelThreads: getUXLabsHighPerformance() ? 0 : rays.length },
+    { abortSignal: abortController.signal, throttleParallelThreads: getUXLabsHighPerformance() ? 0 : !playNice ? 1 : rays.length },
     onMessageUpdated,
   )
     .then((status) => {
@@ -118,7 +118,7 @@ function rayScatterStart(ray: BRay, llmId: DLLMId | null, inputHistory: DMessage
 }
 
 function rayScatterStop(ray: BRay): BRay {
-  ray.genAbortController?.abort();
+  ray.genAbortController?.abort('Beam Stopped');
   return {
     ...ray,
     ...(ray.status === 'scattering' ? { status: 'stopped' } : {}),
@@ -186,10 +186,12 @@ export interface ScatterStoreSlice extends ScatterStateSlice {
   removeRay: (rayId: BRayId) => void;
   importRays: (messages: DMessage[], raysLlmIdFallback: DLLMId | null) => void;
   setRayLlmIds: (rayLlmIds: DLLMId[]) => void;
-  startScatteringAll: () => void;
+  startScatteringAll: (restart: boolean) => void;
   stopScatteringAll: () => void;
   rayToggleScattering: (rayId: BRayId) => void;
   raySetLlmId: (rayId: BRayId, llmId: DLLMId | null) => void;
+  rayDeleteFragment: (rayId: BRayId, fragmentId: DMessageFragmentId) => void;
+  rayReplaceFragment: (rayId: BRayId, fragmentId: DMessageFragmentId, newFragment: DMessageFragment) => void;
   _rayUpdate: (rayId: BRayId, update: Partial<BRay> | ((ray: BRay) => Partial<BRay>)) => void;
 
   _storeLastScatterConfig: () => void;
@@ -307,11 +309,15 @@ export const createScatterSlice: StateCreator<RootStoreSlice & ScatterStoreSlice
   },
 
 
-  startScatteringAll: () => {
+  startScatteringAll: (restart: boolean) => {
     const { inputHistory } = _get();
     _set(state => ({
       // Start all rays
-      rays: state.rays.map(ray => rayScatterStart(ray, ray.rayLlmId, inputHistory || [], false, _get())),
+      rays: state.rays.map(ray =>
+        (!restart || ray.status !== 'empty')
+          ? rayScatterStart(ray, ray.rayLlmId, inputHistory || [], false, true, _get())
+          : ray
+      ),
     }));
     _get()._syncRaysStateToScatter();
   },
@@ -328,7 +334,7 @@ export const createScatterSlice: StateCreator<RootStoreSlice & ScatterStoreSlice
     _rayUpdate(rayId, (ray) =>
       ray.status === 'scattering'
         ? /* User Terminated the ray */ rayScatterStop(ray)
-        : /* User Started the ray */ rayScatterStart(ray, ray.rayLlmId, inputHistory || [], false, _get()),
+        : /* User Started the ray */ rayScatterStart(ray, ray.rayLlmId, inputHistory || [], false, false, _get()),
     );
     _syncRaysStateToScatter();
   },
@@ -340,6 +346,46 @@ export const createScatterSlice: StateCreator<RootStoreSlice & ScatterStoreSlice
     });
     _storeLastScatterConfig();
   },
+
+  rayDeleteFragment: (rayId: BRayId, fragmentId: DMessageFragmentId) =>
+    _get()._rayUpdate(rayId, (ray) => {
+      // Find the fragment to delete
+      const fragmentIndex = ray.message.fragments.findIndex(f => f.fId === fragmentId);
+      if (fragmentIndex < 0) {
+        console.error(`rayDeleteFragment: Fragment not found for ID ${fragmentId} in ray ${rayId}`);
+        return {};
+      }
+
+      return {
+        message: {
+          ...ray.message,
+          fragments: ray.message.fragments.filter((_, index) => index !== fragmentIndex),
+          updated: Date.now(),
+        },
+      };
+    }),
+
+  rayReplaceFragment: (rayId: BRayId, fragmentId: DMessageFragmentId, newFragment: DMessageFragment) =>
+    _get()._rayUpdate(rayId, (ray) => {
+      // Find the fragment to replace
+      const fragmentIndex = ray.message.fragments.findIndex(f => f.fId === fragmentId);
+      if (fragmentIndex < 0) {
+        console.error(`rayReplaceFragment: Fragment not found for ID ${fragmentId} in ray ${rayId}`);
+        return {};
+      }
+
+      return {
+        message: {
+          ...ray.message,
+          fragments: ray.message.fragments.map((fragment, index) =>
+            (index === fragmentIndex)
+              ? { ...newFragment }
+              : fragment,
+          ),
+          updated: Date.now(),
+        },
+      };
+    }),
 
   _rayUpdate: (rayId: BRayId, update: Partial<BRay> | ((ray: BRay) => Partial<BRay>)) =>
     _set(state => ({

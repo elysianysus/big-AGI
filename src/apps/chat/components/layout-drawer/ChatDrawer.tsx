@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 
 import { Box, Button, Dropdown, IconButton, ListDivider, ListItem, ListItemButton, ListItemDecorator, Menu, MenuButton, MenuItem, Tooltip, Typography } from '@mui/joy';
 import AddIcon from '@mui/icons-material/Add';
+import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
 import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ClearIcon from '@mui/icons-material/Clear';
@@ -20,13 +21,14 @@ import { DFolder, useFolderStore } from '~/common/stores/folders/store-chat-fold
 import { DebouncedInputMemo } from '~/common/components/DebouncedInput';
 import { FoldersToggleOff } from '~/common/components/icons/FoldersToggleOff';
 import { FoldersToggleOn } from '~/common/components/icons/FoldersToggleOn';
+import { OPTIMA_DRAWER_BACKGROUND } from '~/common/layout/optima/optima.config';
 import { OptimaDrawerHeader } from '~/common/layout/optima/drawer/OptimaDrawerHeader';
 import { OptimaDrawerList } from '~/common/layout/optima/drawer/OptimaDrawerList';
 import { capitalizeFirstLetter } from '~/common/util/textUtils';
 import { getIsMobile } from '~/common/components/useMatchMedia';
 import { optimaCloseDrawer } from '~/common/layout/optima/useOptima';
 import { themeScalingMap, themeZIndexOverMobileDrawer } from '~/common/app.theme';
-import { useUIPreferencesStore } from '~/common/state/store-ui';
+import { useUIPreferencesStore } from '~/common/stores/store-ui';
 
 import { ChatDrawerItemMemo, FolderChangeRequest } from './ChatDrawerItem';
 import { ChatFolderList } from './folders/ChatFolderList';
@@ -64,6 +66,7 @@ function ChatDrawer(props: {
   activeFolderId: string | null,
   chatPanesConversationIds: DConversationId[],
   disableNewButton: boolean,
+  focusedChatBeamOpen: boolean,
   onConversationActivate: (conversationId: DConversationId) => void,
   onConversationBranch: (conversationId: DConversationId, messageId: string | null, addSplitPane: boolean) => void,
   onConversationNew: (forceNoRecycle: boolean, isIncognito: boolean) => void,
@@ -81,6 +84,7 @@ function ChatDrawer(props: {
   const [searchDepth, setSearchDepth] = React.useState<ChatSearchDepth>('attachments'); // default: full search
   const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState('');
   const [folderChangeRequest, setFolderChangeRequest] = React.useState<FolderChangeRequest | null>(null);
+  const [renderLimit, setRenderLimit] = React.useState(200); // progressive loading limit
 
   // external state
   const {
@@ -88,16 +92,27 @@ function ChatDrawer(props: {
     filterHasDocFragments, toggleFilterHasDocFragments,
     filterHasImageAssets, toggleFilterHasImageAssets,
     filterHasStars, toggleFilterHasStars,
+    filterIsArchived, toggleFilterIsArchived,
     showPersonaIcons, toggleShowPersonaIcons,
     showRelativeSize, toggleShowRelativeSize,
   } = useChatDrawerFilters();
   const { activeFolder, allFolders, enableFolders, toggleEnableFolders } = useFolders(props.activeFolderId);
   const { filteredChatsCount, filteredChatIDs, filteredChatsAreEmpty, filteredChatsBarBasis, filteredChatsIncludeActive, renderNavItems } = useChatDrawerRenderItems(
-    props.activeConversationId, props.chatPanesConversationIds, debouncedSearchQuery, activeFolder, allFolders, filterHasStars, filterHasImageAssets, filterHasDocFragments, navGrouping, searchSorting, showRelativeSize, searchDepth,
+    props.activeConversationId, props.chatPanesConversationIds, debouncedSearchQuery, activeFolder, allFolders, filterHasStars, filterHasImageAssets, filterHasDocFragments, filterIsArchived, navGrouping, searchSorting, showRelativeSize, searchDepth,
   );
   const [uiComplexityMode, contentScaling] = useUIPreferencesStore(useShallow((state) => [state.complexityMode, state.contentScaling]));
   const zenMode = uiComplexityMode === 'minimal';
   const gifMode = uiComplexityMode === 'extra';
+
+  // Calculate chat counts per folder
+  // TODO: restore this, but also check if conversations are active? or move the computation to the renderNavItems hook?
+  // const folderChatCounts = React.useMemo(() => {
+  //   const counts: Record<string, number> = {};
+  //   allFolders.forEach(folder => {
+  //     counts[folder.id] = folder.conversationIds.length;
+  //   });
+  //   return counts;
+  // }, [allFolders]);
 
 
   // New/Activate/Delete Conversation
@@ -151,6 +166,30 @@ function ChatDrawer(props: {
   }, []);
 
 
+  // Render limit - load more items
+
+  const handleRenderLimitIncrease = React.useCallback(() => {
+    setRenderLimit(prevValue => {
+      // Thresholds: 200 --(+200)--> 400 --(+500)--> 900 --(+1000)--> 1900 --> Infinity --> 200 (cycle)
+      if (prevValue === 200)
+        return (filteredChatsCount > 400 ? 400 : Infinity); // if less than 400, show all
+      else if (prevValue === 400)
+        return (filteredChatsCount > 900 ? 900 : Infinity); // if less than 900, show all
+      else if (prevValue === 900)
+        return (filteredChatsCount > 1900 ? 1900 : Infinity); // if less than 1900, show all
+      else if (prevValue === 1900)
+        return Infinity; // no limit
+      else
+        return 200; // go back to optimized view
+    });
+  }, [filteredChatsCount]);
+
+  // Reset render limit when search query changes
+  React.useEffect(() => {
+    setRenderLimit(200);
+  }, [debouncedSearchQuery]);
+
+
   // memoize the group dropdown
   const { isSearching } = isDrawerSearching(debouncedSearchQuery);
   const groupingComponent = React.useMemo(() => (
@@ -188,6 +227,10 @@ function ChatDrawer(props: {
           <MenuItem onClick={toggleFilterHasStars}>
             <ListItemDecorator>{filterHasStars && <CheckRoundedIcon />}</ListItemDecorator>
             Starred <StarOutlineRoundedIcon />
+          </MenuItem>
+          <MenuItem onClick={toggleFilterIsArchived}>
+            <ListItemDecorator>{filterIsArchived && <CheckRoundedIcon />}</ListItemDecorator>
+            Archived <ArchiveOutlinedIcon />
           </MenuItem>
           <MenuItem onClick={toggleFilterHasImageAssets}>
             <ListItemDecorator>{filterHasImageAssets && <CheckRoundedIcon />}</ListItemDecorator>
@@ -245,8 +288,8 @@ function ChatDrawer(props: {
       )}
     </Dropdown>
   ), [
-    filterHasDocFragments, filterHasImageAssets, filterHasStars, isSearching, navGrouping, searchSorting, searchDepth, showPersonaIcons, showRelativeSize,
-    toggleFilterHasDocFragments, toggleFilterHasImageAssets, toggleFilterHasStars, toggleShowPersonaIcons, toggleShowRelativeSize,
+    filterHasDocFragments, filterHasImageAssets, filterHasStars, isSearching, navGrouping, searchSorting, searchDepth, filterIsArchived, showPersonaIcons, showRelativeSize,
+    toggleFilterHasDocFragments, toggleFilterHasImageAssets, toggleFilterHasStars, toggleFilterIsArchived, toggleShowPersonaIcons, toggleShowRelativeSize,
   ]);
 
 
@@ -275,6 +318,7 @@ function ChatDrawer(props: {
     {enableFolders && (
       <ChatFolderList
         folders={allFolders}
+        // folderChatCounts={folderChatCounts}
         contentScaling={contentScaling}
         activeFolderId={props.activeFolderId}
         onFolderSelect={props.setActiveFolderId}
@@ -336,7 +380,7 @@ function ChatDrawer(props: {
 
       {/* Chat Titles List (shrink as half the rate as the Folders List) */}
       <Box sx={{ flexGrow: 1, flexShrink: 1, flexBasis: '20rem', overflowY: 'auto', ...themeScalingMap[contentScaling].chatDrawerItemSx }}>
-        {renderNavItems.map((item, idx) => item.type === 'nav-item-chat-data' ? (
+        {renderNavItems.slice(0, renderLimit).map((item, idx) => item.type === 'nav-item-chat-data' ? (
             <ChatDrawerItemMemo
               key={'nav-chat-' + item.conversationId}
               item={item}
@@ -356,7 +400,7 @@ function ChatDrawer(props: {
               // keeps the group header sticky to the top
               position: 'sticky',
               top: 0,
-              backgroundColor: 'background.popup',
+              backgroundColor: OPTIMA_DRAWER_BACKGROUND,
               zIndex: 1,
             }}>
               {item.title}
@@ -367,7 +411,7 @@ function ChatDrawer(props: {
                 {filterHasStars && <StarOutlineRoundedIcon sx={{ color: 'primary.softColor', fontSize: 'xl', mb: -0.5, mr: 1 }} />}
                 {item.message}
               </Typography>
-              {(filterHasStars || filterHasImageAssets || filterHasDocFragments) && (
+              {(filterHasStars || filterHasImageAssets || filterHasDocFragments || filterIsArchived) && (
                 <Tooltip title='Clear Filters'>
                   <IconButton size='sm' color='primary' onClick={clearFilters}>
                     <ClearIcon />
@@ -376,6 +420,28 @@ function ChatDrawer(props: {
               )}
             </Box>
           ) : null,
+        )}
+
+        {/* Load More Button */}
+        {filteredChatsCount > 200 && (
+          <ListItem>
+            <ListItemButton
+              variant='soft'
+              onClick={handleRenderLimitIncrease}
+              sx={{ justifyContent: 'center', py: 3 }}
+            >
+              {renderLimit === Infinity
+                ? 'Show less'
+                : (renderLimit === 200 && filteredChatsCount > 400)
+                  ? 'Show 200 more'
+                  : (renderLimit === 400 && filteredChatsCount > 900)
+                    ? 'Show 500 more'
+                    : (renderLimit === 900 && filteredChatsCount > 1900)
+                      ? 'Show 1000 more'
+                      : 'Show all'
+              } {renderLimit !== Infinity && `(${filteredChatsCount - renderLimit} hidden)`}
+            </ListItemButton>
+          </ListItem>
         )}
       </Box>
 
@@ -391,7 +457,7 @@ function ChatDrawer(props: {
           {/*<OpenAIIcon sx={{  ml: 'auto' }} />*/}
         </ListItemButton>
 
-        <ListItemButton disabled={filteredChatsAreEmpty} onClick={handleConversationsExport} sx={{ flex: 1 }}>
+        <ListItemButton disabled={filteredChatsAreEmpty || props.focusedChatBeamOpen} onClick={handleConversationsExport} sx={{ flex: 1 }}>
           <ListItemDecorator>
             <FileUploadOutlinedIcon />
           </ListItemDecorator>

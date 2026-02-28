@@ -1,538 +1,316 @@
-import { LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Vision } from '~/common/stores/llms/llms.types';
+import * as z from 'zod/v4';
 
-import { fromManualMapping, ManualMappings } from './models.data';
+import { LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Reasoning, LLM_IF_OAI_Vision } from '~/common/stores/llms/llms.types';
+import { Release } from '~/common/app.release';
+
 import type { ModelDescriptionSchema } from '../../llm.server.types';
-import { wireMistralModelsListOutputSchema } from '../mistral.wiretypes';
+import { llmDevCheckModels_DEV } from '../../models.mappings';
+
+
+// configuration
+const DEV_DEBUG_MISTRAL_MODELS = Release.IsNodeDevBuild; // not in staging to reduce noise
 
 
 // [Mistral]
-// updated from the models on: https://docs.mistral.ai/getting-started/models/
-// and the pricing available on: https://mistral.ai/technology/#pricing
+// Updated 2026-01-29
+// - models on: https://docs.mistral.ai/getting-started/models/models_overview/
+// - pricing on: https://mistral.ai/pricing#api-pricing
+// - benchmark elo on CBA
 
-const _knownMistralChatModels: ManualMappings = [
-  // Premier models
+const _knownMistralModelDetails: Record<string, {
+  label?: string; // override the API-provided name
+  chatPrice?: { input: number; output: number };
+  benchmark?: { cbaElo: number };
+  hidden?: boolean;
+}> = {
 
-  // Mistral Large 24.11
-  {
-    idPrefix: 'mistral-large-2411',
-    label: 'Mistral Large (24.11)',
-    description: 'Top-tier reasoning for high-complexity tasks and sophisticated problems.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
-    chatPrice: { input: 2, output: 6 },
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-large-2407',
-    label: 'Mistral Large (24.07)',
-    description: 'Our top-tier reasoning model for high-complexity tasks with the second version released July 2024. Learn more on our blog post',
-    contextWindow: 131072,
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
-    chatPrice: { input: 2, output: 6 },
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-large-2402',
-    label: 'Mistral Large (24.02)',
-    description: 'Our top-tier reasoning model for high-complexity tasks with the first version released Feb. 2024. Learn more on our blog post',
-    contextWindow: 32768,
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
-    chatPrice: { input: 2, output: 6 },
-  },
-  {
-    hidden: true,
-    idPrefix: 'mistral-large-latest',
-    label: 'Mistral Large (latest)',
-    symLink: 'mistral-large-2411',
-    // Copied details from 24.11
-    description: 'Top-tier reasoning for high-complexity tasks and sophisticated problems.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
-    chatPrice: { input: 2, output: 6 },
-  },
+  // Premier models - Mistral 3 (Dec 2025)
+  'mistral-large-2512': { chatPrice: { input: 0.5, output: 1.5 }, benchmark: { cbaElo: 1414 } }, // Mistral Large 3 - MoE 41B active / 675B total
+  'mistral-large-2411': { chatPrice: { input: 2, output: 6 }, benchmark: { cbaElo: 1305 }, hidden: true }, // older version
+  'mistral-large-latest': { chatPrice: { input: 0.5, output: 1.5 }, hidden: true }, // → 2512
 
+  'mistral-medium-2508': { chatPrice: { input: 0.4, output: 2 }, benchmark: { cbaElo: 1412 } }, // Mistral Medium 3
+  'mistral-medium-2505': { chatPrice: { input: 0.4, output: 2 }, benchmark: { cbaElo: 1384 }, hidden: true }, // older version
+  'mistral-medium-latest': { chatPrice: { input: 0.4, output: 2 }, hidden: true }, // → 2508
+  'mistral-medium': { chatPrice: { input: 0.4, output: 2 }, hidden: true }, // symlink
 
-  // Pixtral Large
-  {
-    idPrefix: 'pixtral-large-2411',
-    label: 'Pixtral Large (24.11)',
-    description: 'Vision-capable large model with frontier reasoning capabilities.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Vision],
-    chatPrice: { input: 2, output: 6 },
-  },
-  {
-    hidden: true,
-    idPrefix: 'pixtral-large-latest',
-    label: 'Pixtral Large (latest)',
-    symLink: 'pixtral-large-2411',
-    // Copied details from 24.11
-    description: 'Vision-capable large model with frontier reasoning capabilities.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn, LLM_IF_OAI_Vision],
-    chatPrice: { input: 2, output: 6 },
-  },
+  'magistral-medium-2509': { chatPrice: { input: 2, output: 5 }, benchmark: { cbaElo: 1305 } }, // reasoning
+  'magistral-medium-latest': { chatPrice: { input: 2, output: 5 }, hidden: true }, // symlink
 
+  'devstral-2512': { label: 'Devstral 2 (2512)', chatPrice: { input: 0.4, output: 2 } }, // Devstral 2 - 123B coding agents (API returns "Mistral Vibe Cli")
+  'devstral-latest': { label: 'Devstral 2 (latest)', chatPrice: { input: 0.4, output: 2 }, hidden: true }, // symlink
+  'devstral-medium-latest': { label: 'Devstral 2 (latest)', chatPrice: { input: 0.4, output: 2 }, hidden: true }, // symlink
+  'mistral-vibe-cli-latest': { label: 'Devstral 2 (latest)', chatPrice: { input: 0.4, output: 2 }, hidden: true }, // alternate ID for devstral-latest
+  'devstral-medium-2507': { chatPrice: { input: 0.4, output: 2 }, hidden: true }, // older version
 
-  // Mistral Small 25.01
-  {
-    idPrefix: 'mistral-small-2501',
-    label: 'Mistral Small (25.01)',
-    description: 'Cost-efficient, fast, and reliable option for use cases such as translation, summarization, and sentiment analysis. A new leader in the small models category with the latest version v3 released January 2025.',
-    contextWindow: 32 * 1024, // 32K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.1, output: 0.3 },
-  },
-  {
-    // isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-small-2409',
-    label: 'Mistral Small (24.09)',
-    description: 'A new leader in the small models category. Cost-efficient, fast, and reliable option for use cases such as translation, summarization, and sentiment analysis.', // old description, keeping for legacy
-    contextWindow: 131072, // Old value, doc says 32k now for small
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.1, output: 0.3 },
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-small-2402',
-    label: 'Mistral Small (24.02)',
-    description: '',
-    contextWindow: 32 * 1024, // 32K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-small-2312',
-    label: 'Mistral Small (23.12)',
-    description: '',
-    contextWindow: 32 * 1024, // 32K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-  },
-  {
-    hidden: true,
-    idPrefix: 'mistral-small-latest',
-    label: 'Mistral Small (latest)',
-    symLink: 'mistral-small-2501',
-    // Copied details from 25.01
-    description: 'Cost-efficient, fast, and reliable option for use cases such as translation, summarization, and sentiment analysis. A new leader in the small models category with the latest version v3 released January 2025.',
-    contextWindow: 32 * 1024, // 32K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.1, output: 0.3 },
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-small',
-    label: 'Mistral Small',
-    symLink: 'mistral-small-latest',
-    // Copied details from small-latest
-    description: 'Cost-efficient, fast, and reliable option for use cases such as translation, summarization, and sentiment analysis. A new leader in the small models category with the latest version v3 released January 2025.',
-    contextWindow: 32 * 1024, // 32K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.1, output: 0.3 },
-  },
+  'mistral-large-pixtral-2411': { chatPrice: { input: 2, output: 6 } }, // Pixtral Large (alternate ID)
+  'pixtral-large-2411': { chatPrice: { input: 2, output: 6 }, hidden: true }, // symlink
+  'pixtral-large-latest': { chatPrice: { input: 2, output: 6 }, hidden: true }, // symlink
 
-  // Codestral
-  {
-    idPrefix: 'codestral-2501',
-    label: 'Codestral (25.01)',
-    description: 'State-of-the-art Mistral model trained specifically for code tasks with the second version released January 2025, Codestral specializes in low-latency, high-frequency tasks such as fill-in-the-middle (FIM), code correction and test generation.',
-    contextWindow: 256 * 1024, // 256K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.3, output: 0.9 },
-  },
-  {
-    // isLegacy: true,
-    hidden: true,
-    idPrefix: 'codestral-2412',
-    label: 'Codestral (24.12)',
-    description: 'Our cutting-edge language model for coding with the first version released May 2024.',
-    contextWindow: 32768,
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.3, output: 0.9 },
-  },
-  {
-    // isLegacy: true,
-    hidden: true,
-    idPrefix: 'codestral-2411-rc5',
-    label: 'Codestral (24.11 RC5)',
-    description: 'Our cutting-edge language model for coding with the first version released May 2024.',
-    contextWindow: 32768,
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.3, output: 0.9 },
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'codestral-2405',
-    label: 'Codestral (24.05)',
-    description: 'Our cutting-edge language model for coding with the first version released May 2024.',
-    contextWindow: 32768,
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.3, output: 0.9 },
-  },
-  {
-    hidden: true,
-    idPrefix: 'codestral-latest',
-    label: 'Codestral (latest)',
-    symLink: 'codestral-2501',
-    // Copied details from 25.01
-    description: 'State-of-the-art Mistral model trained specifically for code tasks with the second version released January 2025, Codestral specializes in low-latency, high-frequency tasks such as fill-in-the-middle (FIM), code correction and test generation.',
-    contextWindow: 256 * 1024, // 256K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.3, output: 0.9 },
-  },
+  'codestral-2508': { chatPrice: { input: 0.3, output: 0.9 } }, // code generation
+  'codestral-latest': { chatPrice: { input: 0.3, output: 0.9 }, hidden: true }, // symlink
 
-  // Ministral 8B 24.10
-  {
-    idPrefix: 'ministral-8b-2410',
-    label: 'Ministral 8B (24.10)',
-    description: 'Powerful edge model with extremely high performance/price ratio.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.1, output: 0.1 },
-  },
-  {
-    hidden: true,
-    idPrefix: 'ministral-8b-latest',
-    label: 'Ministral 8B (latest)',
-    symLink: 'ministral-8b-2410',
-    // Copied:
-    description: 'Powerful edge model with extremely high performance/price ratio.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.1, output: 0.1 },
-  },
+  'voxtral-small-2507': { chatPrice: { input: 0.1, output: 0.3 } }, // voice (text tokens)
+  'voxtral-small-latest': { chatPrice: { input: 0.1, output: 0.3 }, hidden: true }, // symlink
 
-  // Ministral 3B 24.10
-  {
-    idPrefix: 'ministral-3b-2410',
-    label: 'Ministral 3B (24.10)',
-    description: 'World\'s best edge model.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.04, output: 0.04 },
-  },
-  {
-    hidden: true,
-    idPrefix: 'ministral-3b-latest',
-    label: 'Ministral 3B (latest)',
-    symLink: 'ministral-3b-2410',
-    // Copied:
-    description: 'World\'s best edge model.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.04, output: 0.04 },
-  },
+  'voxtral-mini-2507': { chatPrice: { input: 0.04, output: 0.04 } }, // voice (text tokens)
+  'voxtral-mini-latest': { chatPrice: { input: 0.04, output: 0.04 }, hidden: true }, // symlink
 
-  // Mistral Embed
-  {
-    hidden: true, // Embedding model, thus hidden
-    idPrefix: 'mistral-embed',
-    label: 'Mistral Embed',
-    description: 'State-of-the-art semantic for extracting representation of text extracts',
-    contextWindow: 8 * 1024, // 8K tokens
-    maxCompletionTokens: 8 * 1024,
-    interfaces: [],
-    chatPrice: { input: 0.1, output: 0 }, // $0.1 /1M tokens input, output not applicable
-  },
+  // Ministral 3 family (Dec 2025) - multimodal, multilingual, Apache 2.0
+  'ministral-14b-2512': { chatPrice: { input: 0.2, output: 0.2 } }, // Ministral 3 14B
+  'ministral-14b-latest': { chatPrice: { input: 0.2, output: 0.2 }, hidden: true }, // symlink
 
-  // Mistral Moderation 24.11
-  {
-    hidden: true, // Not a chat model
-    idPrefix: 'mistral-moderation-2411',
-    label: 'Mistral Moderation (24.11)',
-    description: 'Our moderation service that enables our users to detect harmful text content',
-    contextWindow: 8 * 1024, // 8K tokens
-    interfaces: [], // Not a chat interface
-    chatPrice: { input: 0.1, output: 0 }, // Assuming only input cost, like embedding
-  },
-  {
-    hidden: true, // Not a chat model
-    idPrefix: 'mistral-moderation-latest',
-    label: 'Mistral Moderation (latest)',
-    symLink: 'mistral-moderation-2411',
-    // Copied:
-    description: 'Our moderation service that enables our users to detect harmful text content',
-    contextWindow: 8 * 1024, // 8K tokens
-    interfaces: [], // Not a chat interface
-    chatPrice: { input: 0.1, output: 0 }, // Assuming only input cost, like embedding
-  },
+  'ministral-8b-2512': { chatPrice: { input: 0.15, output: 0.15 } }, // Ministral 3 8B
+  'ministral-8b-2410': { chatPrice: { input: 0.1, output: 0.1 }, benchmark: { cbaElo: 1237 }, hidden: true }, // older version
+  'ministral-8b-latest': { chatPrice: { input: 0.15, output: 0.15 }, hidden: true }, // symlink
 
+  'ministral-3b-2512': { chatPrice: { input: 0.1, output: 0.1 } }, // Ministral 3 3B
+  'ministral-3b-2410': { chatPrice: { input: 0.04, output: 0.04 }, hidden: true }, // older version
+  'ministral-3b-latest': { chatPrice: { input: 0.1, output: 0.1 }, hidden: true }, // symlink
 
-  ///
-  /// Downloadable models (they call them free, but they cost money on their API service)
-  ///
+  // Open models
+  'mistral-small-2506': { chatPrice: { input: 0.1, output: 0.3 }, benchmark: { cbaElo: 1356 } }, // Mistral Small 3.2
+  'mistral-small-latest': { chatPrice: { input: 0.1, output: 0.3 }, hidden: true }, // symlink
 
-  // Pixtral 12B
-  {
-    idPrefix: 'pixtral-12b-2409',
-    label: 'Pixtral 12B (24.09)',
-    description: 'Vision-capable small model.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Vision],
-    chatPrice: { input: 0.15, output: 0.15 },
-  },
-  {
-    hidden: true,
-    idPrefix: 'pixtral-12b-latest',
-    label: 'Pixtral 12B (latest)',
-    symLink: 'pixtral-12b-2409',
-    // Copied details
-    description: 'Vision-capable small model.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Vision],
-    chatPrice: { input: 0.15, output: 0.15 },
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'pixtral-12b',
-    label: 'Pixtral 12B',
-    symLink: 'pixtral-12b-latest',
-    // Copied details
-    description: 'Vision-capable small model.',
-    contextWindow: 131 * 1024, // 131K tokens
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Vision],
-    chatPrice: { input: 0.15, output: 0.15 },
-  },
+  'labs-mistral-small-creative': { label: 'Mistral Small Creative', chatPrice: { input: 0.1, output: 0.3 } }, // creative writing, roleplay (Labs)
 
-  // Mistral Nemo
-  {
-    idPrefix: 'open-mistral-nemo-2407',
-    label: 'Mistral NeMo (24.07)',
-    description: 'State-of-the-art Mistral model built in collaboration with NVIDIA. The most powerful model in its size category. Multi-lingual (incl. European languages, Chinese, Japanese, Korean, Hindi, Arabic). Large context window of 128K tokens.',
-    contextWindow: 131 * 1024, // 131K tokens - Doc and Tech page says 128k, using 131k for consistency
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.15, output: 0.15 },
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'open-mistral-nemo', // XX
-    label: 'Mistral NeMo',
-    symLink: 'open-mistral-nemo-2407',
-    // Copied details
-    description: 'State-of-the-art Mistral model built in collaboration with NVIDIA. The most powerful model in its size category. Multi-lingual (incl. European languages, Chinese, Japanese, Korean, Hindi, Arabic). Large context window of 128K tokens.',
-    contextWindow: 131 * 1024, // 131K tokens - Doc and Tech page says 128k, using 131k for consistency
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.15, output: 0.15 },
-  },
+  'magistral-small-2509': { chatPrice: { input: 0.5, output: 1.5 } }, // reasoning
+  'magistral-small-latest': { chatPrice: { input: 0.5, output: 1.5 }, hidden: true }, // symlink
 
-  // Codestral Mamba
-  {
-    // hidden: true, // Research model
-    idPrefix: 'codestral-mamba-2407',
-    label: 'Codestral Mamba (24.07)',
-    description: 'A Mamba2 language model designed for coding tasks.',
-    contextWindow: 256 * 1024, // 256K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.3, output: 0.9 }, // Assuming same price as codestral-latest
-  },
-  {
-    hidden: true,
-    idPrefix: 'codestral-mamba-latest',
-    label: 'Codestral Mamba (latest)',
-    symLink: 'codestral-mamba-2407',
-    // Copied details
-    description: 'A Mamba2 language model designed for coding tasks.',
-    contextWindow: 256 * 1024, // 256K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.3, output: 0.9 }, // Assuming same price as codestral-latest
-  },
-  {
-    isLegacy: true, // Former name was Codestral Mamba
-    hidden: true, // Research model
-    idPrefix: 'open-codestral-mamba',
-    label: 'Codestral Mamba',
-    description: 'A Mamba2 language model designed for coding tasks.',
-    contextWindow: 256 * 1024, // 256K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.3, output: 0.9 }, // Assuming same price as codestral-latest
-  },
+  'labs-devstral-small-2512': { label: 'Devstral Small 2 (2512)', chatPrice: { input: 0.1, output: 0.3 } }, // Devstral Small 2 - 24B coding agents (Labs)
+  'devstral-small-2507': { chatPrice: { input: 0.1, output: 0.3 }, hidden: true }, // older version
+  'devstral-small-latest': { label: 'Devstral Small 2 (latest)', chatPrice: { input: 0.1, output: 0.3 }, hidden: true }, // symlink
 
+  'pixtral-12b-2409': { chatPrice: { input: 0.15, output: 0.15 } }, // vision
+  'pixtral-12b-latest': { chatPrice: { input: 0.15, output: 0.15 }, hidden: true }, // symlink
+  'pixtral-12b': { chatPrice: { input: 0.15, output: 0.15 }, hidden: true }, // symlink
 
-  // Legacy models - Deprecated and Retired on March 30, 2025
+  'open-mistral-nemo-2407': { chatPrice: { input: 0.15, output: 0.15 } }, // NeMo
+  'open-mistral-nemo': { chatPrice: { input: 0.15, output: 0.15 }, hidden: true }, // symlink
 
-  // Mistral Medium
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-medium-2312',
-    label: 'Mistral Medium (23.12)',
-    description: 'Ideal for intermediate tasks that require moderate reasoning',
-    contextWindow: 32 * 1024,
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 2.75, output: 8.1 },
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-medium-latest',
-    label: 'Mistral Medium (latest)',
-    symLink: 'mistral-medium-2312',
-    // Copied details
-    description: 'Ideal for intermediate tasks that require moderate reasoning',
-    contextWindow: 32 * 1024,
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 2.75, output: 8.1 },
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-medium',
-    label: 'Mistral Medium',
-    symLink: 'mistral-medium-latest',
-    // Copied details
-    description: 'Ideal for intermediate tasks that require moderate reasoning',
-    contextWindow: 32 * 1024,
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 2.75, output: 8.1 },
-  },
+  // Legacy (kept for reference, no longer in API)
+  'open-mistral-7b': { chatPrice: { input: 0.25, output: 0.25 }, hidden: true },
+};
 
-  // Mixtral 8x22B
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'open-mixtral-8x22b-2404',
-    label: 'Mixtral 8x22B (24.04)',
-    description: 'Mixtral 8x22B is currently the most performant open model.',
-    contextWindow: 64 * 1024, // 64K tokens
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
-    chatPrice: { input: 2, output: 6 },
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'open-mixtral-8x22b',
-    label: 'Mixtral 8x22B',
-    symLink: 'open-mixtral-8x22b-2404',
-    // Copied details
-    description: 'Mixtral 8x22B is currently the most performant open model.',
-    contextWindow: 64 * 1024, // 64K tokens
-    interfaces: [LLM_IF_OAI_Chat, LLM_IF_OAI_Fn],
-    chatPrice: { input: 2, output: 6 },
-  },
-
-  // Mixtral 8x7B
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'open-mixtral-8x7b',
-    label: 'Mixtral 8x7B',
-    description: 'A high-quality sparse mixture of experts (SMoE) with open weights. Matches or outperforms GPT3.5 on most standard benchmarks, particularly in multilingual capabilities and code.',
-    contextWindow: 32 * 1024, // 32K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.7, output: 0.7 },
-  },
-
-  // Mistral 7B
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'open-mistral-7b',
-    label: 'Mistral 7B',
-    description: 'Our first dense model released September 2023.',
-    contextWindow: 32 * 1024, // 32K tokens
-    interfaces: [LLM_IF_OAI_Chat],
-    chatPrice: { input: 0.25, output: 0.25 },
-  },
-
-  // Mistral Tiny
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-tiny-2407',
-    label: 'Mistral Tiny (24.07)',
-    description: 'Used for large batch processing tasks where cost is a significant factor but reasoning capabilities are not crucial.',
-    contextWindow: 32 * 1024,
-    interfaces: [LLM_IF_OAI_Chat],
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-tiny-2312',
-    label: 'Mistral Tiny (23.12)',
-    description: 'Used for large batch processing tasks where cost is a significant factor but reasoning capabilities are not crucial.',
-    contextWindow: 32 * 1024,
-    interfaces: [LLM_IF_OAI_Chat],
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-tiny-latest',
-    label: 'Mistral Tiny (latest)',
-    symLink: 'mistral-tiny-2407',
-    // Copied details
-    description: 'Used for large batch processing tasks where cost is a significant factor but reasoning capabilities are not crucial.',
-    contextWindow: 32 * 1024,
-    interfaces: [LLM_IF_OAI_Chat],
-  },
-  {
-    isLegacy: true,
-    hidden: true,
-    idPrefix: 'mistral-tiny',
-    label: 'Mistral Tiny',
-    symLink: 'mistral-tiny-latest',
-    // Copied details
-    description: 'Used for large batch processing tasks where cost is a significant factor but reasoning capabilities are not crucial.',
-    contextWindow: 32 * 1024,
-    interfaces: [LLM_IF_OAI_Chat],
-  },
-
-];
 
 const mistralModelFamilyOrder = [
-  // Premier
-  'mistral-large',
-  'pixtral-large',
-  'mistral-small',
-  'codestral-mamba',
-  'open-codestral-mamba',
-  'codestral',
+  // Mistral 3 (Dec 2025)
+  'mistral-large-2512',   // Mistral Large 3 - specific prefix must come before generic 'mistral-large'
+  'ministral-14b',
   'ministral-8b',
   'ministral-3b',
+  // Premier
+  'magistral-medium',
+  'mistral-medium',
+  'devstral-2512',        // Devstral 2 - must come before generic 'devstral'
+  'mistral-vibe-cli',     // alternate ID for Devstral 2
+  'devstral-medium',
+  'mistral-large-pixtral', // Pixtral Large uses 'mistral-large-pixtral-2411' ID - must come before 'mistral-large'
+  'pixtral-large',
+  'mistral-large',        // Generic fallback for other mistral-large variants
+  'codestral',
+  'magistral-small',
+  'mistral-small',
+  'labs-mistral-small-creative', // Mistral Small Creative (Labs) - must come after mistral-small
+  'labs-devstral-small-2512', // Devstral Small 2 (Labs) - must come before generic prefixes
+  'devstral-small',
+  'voxtral-small',
+  'voxtral-mini',
   'mistral-embed',
+  'mistral-ocr',
+  'codestral-embed',
   'mistral-moderation',
-  // Downloadable
+  // Open
+  'open-codestral-mamba',
   'pixtral-12b',
   'open-mistral-nemo',
-  'open-mixtral-8x22b',
-  'open-mixtral-8x7b',
+  // Legacy (no longer in API, kept for fallback)
   'open-mistral-7b',
   // Deprecated
-  'mistral-medium',
   'mistral-tiny',
   // Symlinks at the bottom
   '🔗',
 ];
 
-export function mistralModelToModelDescription(_model: unknown): ModelDescriptionSchema {
-  const model = wireMistralModelsListOutputSchema.parse(_model);
-  return fromManualMapping(_knownMistralChatModels, model.id, model.created, undefined, {
-    idPrefix: model.id,
-    label: model.id.replaceAll(/[_-]/g, ' '),
-    description: 'New Mistral Model',
-    contextWindow: 32768,
-    interfaces: [LLM_IF_OAI_Chat], // assume..
-    hidden: true,
-  });
-}
 
-export function mistralModelsSort(a: ModelDescriptionSchema, b: ModelDescriptionSchema): number {
+function _mistralModelsSort(a: ModelDescriptionSchema, b: ModelDescriptionSchema): number {
   if (a.label.startsWith('🔗') && !b.label.startsWith('🔗')) return 1;
   if (!a.label.startsWith('🔗') && b.label.startsWith('🔗')) return -1;
-  const aPrefixIndex = mistralModelFamilyOrder.findIndex(prefix => a.id.startsWith(prefix));
-  const bPrefixIndex = mistralModelFamilyOrder.findIndex(prefix => b.id.startsWith(prefix));
-  if (aPrefixIndex !== -1 && bPrefixIndex !== -1) {
-    if (aPrefixIndex !== bPrefixIndex)
-      return aPrefixIndex - bPrefixIndex;
+  let aIndex = mistralModelFamilyOrder.findIndex(id => a.id === id);
+  if (aIndex === -1)
+    aIndex = mistralModelFamilyOrder.findIndex(prefix => a.id.startsWith(prefix));
+  let bIndex = mistralModelFamilyOrder.findIndex(id => b.id === id);
+  if (bIndex === -1)
+    bIndex = mistralModelFamilyOrder.findIndex(prefix => b.id.startsWith(prefix));
+  if (aIndex !== -1 && bIndex !== -1) {
+    if (aIndex !== bIndex)
+      return aIndex - bIndex;
     return b.label.localeCompare(a.label);
   }
-  return aPrefixIndex !== -1 ? 1 : -1;
+  return aIndex !== -1 ? 1 : -1;
 }
+
+
+function _prettyMistralName(name: string): string {
+  return name
+    // .replace(/^(mistral|codestral|pixtral|magistral|ministral|devstral)-/, '')
+    .replace(/-(2\d{3})$/, ' ($1)')
+    .replace(/-(latest|embed)$/, ' ($1)')
+    .replaceAll(/[_-]/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function _mistralCapabilitiesToInterfaces(capabilities: WireMistralModel['capabilities'], modelId: string) {
+  // everyone gets Chat
+  const interfaces = [LLM_IF_OAI_Chat];
+  if (!capabilities || capabilities.function_calling)
+    interfaces.push(LLM_IF_OAI_Fn);
+  if (!capabilities || capabilities.vision)
+    interfaces.push(LLM_IF_OAI_Vision);
+  // if (!capabilities || capabilities.audio)
+  //   interfaces.push(...audio input...); // Voxtral
+  // Add reasoning interface for magistral models
+  if (modelId.includes('magistral'))
+    interfaces.push(LLM_IF_OAI_Reasoning);
+  return interfaces;
+}
+
+
+export function mistralModels(wireModels: unknown): ModelDescriptionSchema[] {
+
+  // 1. Parse and filter the API response
+  const mistralModels = wireMistralModelsListSchema.parse(wireModels)
+    .filter(m => !m.capabilities || m.capabilities.completion_chat) // removes: *-embed, *-moderation, *-ocr
+    .filter(m => !m.id.includes('-ocr')); // explicit filter for OCR models
+
+
+  // 2. Auto-hide models based on alias groups
+  const aliasGroups = mistralModels.reduce((accGroups: Set<string>[], model) => {
+    const modelIds = new Set([model.id, ...(model.aliases || [])]);
+
+    // partition existing groups into those connected to the current model
+    const connected = accGroups.filter(g => [...g].some(id => modelIds.has(id)));
+    const unconnected = accGroups.filter(g => !connected.includes(g));
+
+    // merge all connected groups with the current model's IDs into a single new group
+    const mergedGroup = connected.reduce((merged, group) => {
+      group.forEach(id => merged.add(id));
+      return merged;
+    }, modelIds);
+
+    return [...unconnected, mergedGroup];
+  }, []);
+
+  // 2B. remove the latest entries from the groups
+  const notSymlinks = aliasGroups.map(group => {
+    const sortedIds = Array.from(group).sort();
+
+    const yymmModels = sortedIds.filter(id => /-\d{4}$/.test(id));
+
+    // pick the newest YYMM model if exists, otherwise pick the 2nd element otherwise the 1st
+    return !yymmModels.length ? sortedIds[sortedIds.length > 1 ? 1 : 0]
+      : yymmModels.sort((a, b) => parseInt(b.slice(-4), 10) - parseInt(a.slice(-4), 10))[0];
+  }).filter(Boolean);
+
+
+  // 3. Map the API models to our ModelDescriptionSchema
+  const models = mistralModels.map((mistralModel): ModelDescriptionSchema => {
+    const { id, created, capabilities, name, description, max_context_length } = mistralModel;
+
+    const isSymlink = !notSymlinks.includes(id);
+    const prettyName = _prettyMistralName(name);
+
+    const extraDetails = _knownMistralModelDetails[id] || {};
+    const labelOverride = extraDetails.label;
+
+    return {
+      id: id,
+      label: labelOverride ?? (!isSymlink ? prettyName : `🔗 ${id} → ${prettyName}`),
+      created: created || 0,
+      updated: /*updated ||*/ created || 0,
+      description: description,
+      contextWindow: max_context_length ?? 32768,
+      interfaces: _mistralCapabilitiesToInterfaces(capabilities, id),
+      // parameterSpecs: ...
+      // maxCompletionTokens: ...
+      // benchmark, chatPrice, hidden: provided by extraDetails below:
+      ...extraDetails,
+      // Override hidden only if not explicitly set in extraDetails
+      hidden: extraDetails.hidden ?? !notSymlinks.includes(id),
+    };
+  });
+
+  // 4. Sort
+  models.sort(_mistralModelsSort);
+
+  // 5. Hide - pass 2 - hide earlier models versions
+  for (let i = 1; i < models.length; i++) {
+    const currentModel = models[i];
+    const prevModel = models[i - 1];
+    // if (prevModel.hidden) continue;
+
+    if (currentModel.id.length > 4 && prevModel.id.length > 4 &&
+      currentModel.id.slice(0, -4) === prevModel.id.slice(0, -4)) {
+      currentModel.hidden = true;
+    }
+  }
+
+  // 6. [DEV] check model definitions and pricing
+  if (DEV_DEBUG_MISTRAL_MODELS) {
+
+    // check stale model definitions (unknown check disabled - too many intentionally untracked models)
+    const knownModelIds = Object.keys(_knownMistralModelDetails);
+    llmDevCheckModels_DEV('Mistral', models.map(m => m.id), knownModelIds, { checkUnknown: false });
+
+    // show missing pricing
+    const missingPricing = knownModelIds.filter(id => !_knownMistralModelDetails[id].chatPrice);
+    if (missingPricing.length > 0)
+      console.log('[DEV] Mistral models missing pricing:', missingPricing);
+
+  }
+
+  return models;
+}
+
+
+/// Mistral Wire Parsers
+
+type WireMistralModel = z.infer<typeof wireMistralModelSchema>;
+const wireMistralModelSchema = z.object({
+
+  id: z.string(),
+  object: z.literal('model'),
+
+  created: z.number(),  // it's the same number for all models...
+  owned_by: z.string(), // not useful, always 'mistralai'
+  type: z.string(), // 'base'
+
+  capabilities: z.object({
+    completion_chat: z.boolean(), // used to remove other models
+    function_calling: z.boolean().nullish(),
+    completion_fim: z.boolean().nullish(),
+    fine_tuning: z.boolean().nullish(),
+    vision: z.boolean().nullish(),
+    ocr: z.boolean().nullish(),
+    classification: z.boolean().nullish(),
+    moderation: z.boolean().nullish(),
+    audio: z.boolean().nullish(),
+  }).nullish(),
+
+  // UI description fields
+  name: z.string(),
+  description: z.string(),
+  aliases: z.array(z.string()),
+
+  // very useful
+  max_context_length: z.number(),
+
+  // misc, not used
+  default_model_temperature: z.number().nullish(),
+  // deprecation: z.any(),
+  // deprecation_replacement_model: z.string().nullable(),
+});
+
+const wireMistralModelsListSchema = z.array(wireMistralModelSchema);

@@ -13,7 +13,7 @@ import { CloseablePopup } from '~/common/components/CloseablePopup';
 import { copyToClipboard } from '~/common/util/clipboardUtils';
 import { isLiveFileSupported } from '~/common/livefile/store-live-file';
 import { reverseLookupMdTitle, reverseLookupMimeType } from '~/common/attachment-drafts/attachment.mimetypes';
-import { useUXLabsStore } from '~/common/state/store-ux-labs';
+import { useUXLabsStore } from '~/common/stores/store-ux-labs';
 
 import { getCodeCollapseManager } from './codeCollapseManager';
 
@@ -31,8 +31,6 @@ export function EnhancedRenderCodeMenu(props: {
 }) {
 
   // state
-  // const { showPromisedOverlay } = useOverlayComponents();
-  // const labsDevMode = useLabsDevMode();
   const { labsEnhanceCodeLiveFile, setLabsEnhanceCodeLiveFile } = useUXLabsStore(useShallow(state => ({
     // labsEnhanceCodeBlocks: state.labsEnhanceCodeBlocks,
     // setLabsEnhanceCodeBlocks: state.setLabsEnhanceCodeBlocks,
@@ -146,14 +144,6 @@ export function EnhancedRenderCodeMenu(props: {
         <ListItemDecorator>{(labsEnhanceCodeLiveFile && liveFileSupported) && <CheckRoundedIcon />}</ListItemDecorator>
         {liveFileSupported ? 'LiveFile Patch' : 'LiveFile - No Browser Support'}
       </MenuItem>
-
-      {/*{labsDevMode && (*/}
-      {/*  // A mix in between UxLabsSettings (labsEnhanceCodeBlocks) and the ChatDrawer MenuItems*/}
-      {/*  <MenuItem onClick={toggleEnhanceCodeBlocks}>*/}
-      {/*    <ListItemDecorator>{labsEnhanceCodeBlocks && <CheckRoundedIcon />}</ListItemDecorator>*/}
-      {/*    [DEV] Enhanced Code Blocks*/}
-      {/*  </MenuItem>*/}
-      {/*)}*/}
 
     </CloseablePopup>
   );

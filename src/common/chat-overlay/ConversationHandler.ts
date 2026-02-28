@@ -5,6 +5,7 @@ import { bareBonesPromptMixer } from '~/modules/persona/pmix/pmix';
 import { SystemPurposes } from '../../data';
 
 import { BeamStore, createBeamVanillaStore } from '~/modules/beam/store-beam_vanilla';
+import { useModuleBeamStore } from '~/modules/beam/store-module-beam';
 
 import type { DConversationId } from '~/common/stores/chat/chat.conversation';
 import type { DLLMId } from '~/common/stores/llms/llms.types';
@@ -38,6 +39,12 @@ export class ConversationHandler {
   constructor(private readonly conversationId: DConversationId) {
     this.beamStore = createBeamVanillaStore();
     this.overlayStore = createPerChatVanillaStore();
+
+    // track the open status of beams - this is meant to be an accelerator for the UI
+    this.beamStore.subscribe((state, prevState) => {
+      if (state.isOpen === prevState.isOpen) return;
+      useModuleBeamStore.getState().setBeamOpenForConversation(this.conversationId, state.isOpen);
+    });
   }
 
 
@@ -131,7 +138,7 @@ export class ConversationHandler {
 
   /**
    * @param text assistant text
-   * @param generatorName LlmId or string, such as 'DALL·E' | 'Prodia' | 'react-...' | 'web'
+   * @param generatorName LlmId or string, such as 'GPT Image' | 'DALL·E' | 'react-...' | 'web'
    */
   messageAppendAssistantText(text: string, generatorName: Extract<DMessageGenerator, { mgt: 'named' }>['name']): void {
     const message = createDMessageTextContent('assistant', text);
@@ -218,6 +225,11 @@ export class ConversationHandler {
 
   historyFindMessageOrThrow(messageId: DMessageId): Readonly<DMessage> | undefined {
     return _chatStoreActions.historyView(this.conversationId)?.find(m => m.id === messageId);
+  }
+
+  /** Strips thinking fragments from assistant messages, preserving `keepCount` most recent (0 = discard all, 1 = keep last only). */
+  historyStripThinking(keepCount: number): void {
+    return _chatStoreActions.historyStripThinking(this.conversationId, keepCount);
   }
 
   title(): string | undefined {

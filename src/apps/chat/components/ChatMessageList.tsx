@@ -7,17 +7,18 @@ import { Box, List } from '@mui/joy';
 import type { SystemPurposeExample } from '../../../data';
 
 import type { DiagramConfig } from '~/modules/aifn/digrams/DiagramsModal';
+import { speakText } from '~/modules/speex/speex.client';
 
 import type { ConversationHandler } from '~/common/chat-overlay/ConversationHandler';
+import type { DLLMContextTokens } from '~/common/stores/llms/llms.types';
 import { DConversationId, excludeSystemMessages } from '~/common/stores/chat/chat.conversation';
 import { ShortcutKey, useGlobalShortcuts } from '~/common/components/shortcuts/useGlobalShortcuts';
+import { clipboardInterceptCtrlCForCleanup } from '~/common/util/clipboardUtils';
 import { convertFilesToDAttachmentFragments } from '~/common/attachment-drafts/attachment.pipeline';
-import { createDMessageFromFragments, createDMessageTextContent, DMessage, DMessageId, DMessageUserFlag, DMetaReferenceItem, MESSAGE_FLAG_AIX_SKIP } from '~/common/stores/chat/chat.message';
+import { createDMessageFromFragments, createDMessageTextContent, DMessage, DMessageId, DMessageUserFlag, DMetaReferenceItem, MESSAGE_FLAG_AIX_SKIP, messageHasUserFlag } from '~/common/stores/chat/chat.message';
 import { createTextContentFragment, DMessageFragment, DMessageFragmentId } from '~/common/stores/chat/chat.fragments';
 import { openFileForAttaching } from '~/common/components/ButtonAttachFiles';
 import { optimaOpenPreferences } from '~/common/layout/optima/useOptima';
-import { useBrowserTranslationWarning } from '~/common/components/useIsBrowserTranslating';
-import { useCapabilityElevenLabs } from '~/common/components/useCapabilities';
 import { useChatOverlayStore } from '~/common/chat-overlay/store-perchat_vanilla';
 import { useChatStore } from '~/common/stores/chat/store-chats';
 import { useScrollToBottom } from '~/common/scroll-to-bottom/useScrollToBottom';
@@ -40,7 +41,7 @@ export function ChatMessageList(props: {
   conversationHandler: ConversationHandler | null,
   capabilityHasT2I: boolean,
   chatLLMAntPromptCaching: boolean,
-  chatLLMContextTokens: number | null,
+  chatLLMContextTokens: DLLMContextTokens,
   chatLLMSupportsImages: boolean,
   fitScreen: boolean,
   isMobile: boolean,
@@ -50,7 +51,6 @@ export function ChatMessageList(props: {
   onConversationNew: (forceNoRecycle: boolean, isIncognito: boolean) => void,
   onTextDiagram: (diagramConfig: DiagramConfig | null) => void,
   onTextImagine: (conversationId: DConversationId, selectedText: string) => Promise<void>,
-  onTextSpeak: (selectedText: string) => Promise<void>,
   setIsMessageSelectionMode: (isMessageSelectionMode: boolean) => void,
   sx?: SxProps,
 }) {
@@ -64,7 +64,6 @@ export function ChatMessageList(props: {
   const { notifyBooting } = useScrollToBottom();
   const danger_experimentalHtmlWebUi = useChatAutoSuggestHTMLUI();
   const [showSystemMessages] = useChatShowSystemMessages();
-  const optionalTranslationWarning = useBrowserTranslationWarning();
   const { conversationMessages, historyTokenCount } = useChatStore(useShallow(({ conversations }) => {
     const conversation = conversations.find(conversation => conversation.id === props.conversationId);
     return {
@@ -76,10 +75,9 @@ export function ChatMessageList(props: {
     _composerInReferenceToCount: state.inReferenceTo?.length ?? 0,
     ephemerals: state.ephemerals?.length ? state.ephemerals : null,
   })));
-  const { mayWork: isSpeakable } = useCapabilityElevenLabs();
 
   // derived state
-  const { conversationHandler, conversationId, capabilityHasT2I, onConversationBranch, onConversationExecuteHistory, onTextDiagram, onTextImagine, onTextSpeak } = props;
+  const { conversationHandler, conversationId, capabilityHasT2I, onConversationBranch, onConversationExecuteHistory, onTextDiagram, onTextImagine } = props;
   const composerCanAddInReferenceTo = _composerInReferenceToCount < 5;
   const composerHasInReferenceto = _composerInReferenceToCount > 0;
 
@@ -118,9 +116,9 @@ export function ChatMessageList(props: {
     }
   }, [conversationHandler, conversationId, onConversationExecuteHistory, props.chatLLMSupportsImages]);
 
-  const handleMessageContinue = React.useCallback(async (_messageId: DMessageId /* Ignored for now */) => {
+  const handleMessageContinue = React.useCallback(async (_messageId: DMessageId /* Ignored for now */, continueText: null | string) => {
     if (conversationId && conversationHandler) {
-      conversationHandler.messageAppend(createDMessageTextContent('user', 'Continue')); // [chat] append user:Continue
+      conversationHandler.messageAppend(createDMessageTextContent('user', continueText || 'Continue')); // [chat] append user:Continue (or custom text, likely from an 'option')
       await onConversationExecuteHistory(conversationId);
     }
   }, [conversationHandler, conversationId, onConversationExecuteHistory]);
@@ -183,7 +181,7 @@ export function ChatMessageList(props: {
   }, [conversationHandler]);
 
   const handleMessageReplaceFragment = React.useCallback((messageId: DMessageId, fragmentId: DMessageFragmentId, newFragment: DMessageFragment) => {
-    conversationHandler?.messageFragmentReplace(messageId, fragmentId, newFragment, false);
+    conversationHandler?.messageFragmentReplace(messageId, fragmentId, newFragment, true);
   }, [conversationHandler]);
 
   const handleMessageToggleUserFlag = React.useCallback((messageId: DMessageId, userFlag: DMessageUserFlag, _maxPerConversation?: number) => {
@@ -213,15 +211,28 @@ export function ChatMessageList(props: {
   }, [capabilityHasT2I, conversationId, onTextImagine]);
 
   const handleTextSpeak = React.useCallback(async (text: string) => {
-    if (!isSpeakable)
-      return optimaOpenPreferences('voice');
+    // sandwich the speaking with the indicator
     setIsSpeaking(true);
-    await onTextSpeak(text);
+    const result = await speakText(text, undefined, { label: 'Chat speak' });
     setIsSpeaking(false);
-  }, [isSpeakable, onTextSpeak]);
+
+    // open voice preferences
+    if (!result.success && (result.errorType === 'tts-no-engine' || result.errorType === 'tts-unconfigured'))
+      optimaOpenPreferences('voice');
+  }, []);
 
 
   // operate on the local selection set
+
+  const areAllSelectedMessagesHidden = React.useMemo(() => {
+    if (selectedMessages.size === 0) return false;
+    for (const messageId of selectedMessages) {
+      const message = conversationMessages.find(m => m.id === messageId);
+      if (message && !messageHasUserFlag(message, MESSAGE_FLAG_AIX_SKIP))
+        return false;
+    }
+    return true;
+  }, [selectedMessages, conversationMessages]);
 
   const handleSelectAll = (selected: boolean) => {
     const newSelected = new Set<string>();
@@ -242,11 +253,11 @@ export function ChatMessageList(props: {
     setSelectedMessages(new Set());
   }, [conversationHandler, selectedMessages]);
 
-  const handleSelectionHide = React.useCallback(() => {
+  const handleSelectionToggleVisibility = React.useCallback(() => {
     for (let selectedMessage of Array.from(selectedMessages))
-      conversationHandler?.messageSetUserFlag(selectedMessage, MESSAGE_FLAG_AIX_SKIP, true, true);
+      conversationHandler?.messageSetUserFlag(selectedMessage, MESSAGE_FLAG_AIX_SKIP, !areAllSelectedMessagesHidden, true);
     setSelectedMessages(new Set());
-  }, [conversationHandler, selectedMessages]);
+  }, [conversationHandler, selectedMessages, areAllSelectedMessagesHidden]);
 
   const { isMessageSelectionMode, setIsMessageSelectionMode } = props;
 
@@ -282,6 +293,10 @@ export function ChatMessageList(props: {
     p: 0,
     ...props.sx,
 
+    // we added these after removing the minSize={20} (%) from the containing panel.
+    minWidth: '18rem',
+    // minHeight: '180px', // not need for this, as it's already an overflow scrolling container, so one can reduce it to a pixel
+
     // fix for the double-border on the last message (one by the composer, one to the bottom of the message)
     // marginBottom: '-1px',
 
@@ -309,9 +324,7 @@ export function ChatMessageList(props: {
     );
 
   return (
-    <List role='chat-messages-list' sx={listSx}>
-
-      {optionalTranslationWarning}
+    <List role='chat-messages-list' sx={listSx} onCopy={clipboardInterceptCtrlCForCleanup}>
 
       {props.isMessageSelectionMode && (
         <MessagesSelectionHeader
@@ -320,7 +333,8 @@ export function ChatMessageList(props: {
           onClose={() => props.setIsMessageSelectionMode(false)}
           onSelectAll={handleSelectAll}
           onDeleteMessages={handleSelectionDelete}
-          onHideMessages={handleSelectionHide}
+          onToggleVisibility={handleSelectionToggleVisibility}
+          areAllMessagesHidden={areAllSelectedMessagesHidden}
         />
       )}
 
@@ -365,7 +379,7 @@ export function ChatMessageList(props: {
               onMessageTruncate={handleMessageTruncate}
               onTextDiagram={handleTextDiagram}
               onTextImagine={capabilityHasT2I ? handleTextImagine : undefined}
-              onTextSpeak={isSpeakable ? handleTextSpeak : undefined}
+              onTextSpeak={handleTextSpeak}
             />
 
           );
